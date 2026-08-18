@@ -13,12 +13,6 @@ java {
     }
 }
 
-configurations {
-    compileOnly {
-        extendsFrom(configurations.annotationProcessor.get())
-    }
-}
-
 repositories {
     mavenCentral()
 }
@@ -43,9 +37,7 @@ dependencies {
     // OpenAPI / Swagger Documentation
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.5")
 
-    // Lombok & Developer Utilities
-    compileOnly("org.projectlombok:lombok:1.18.36")
-    annotationProcessor("org.projectlombok:lombok:1.18.36")
+    // Developer Utilities
     developmentOnly("org.springframework.boot:spring-boot-devtools")
 
     // Testing
