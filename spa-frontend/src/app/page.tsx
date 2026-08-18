@@ -90,13 +90,16 @@ export default function HomePage() {
   const [selectedBranchForUnlock, setSelectedBranchForUnlock] = useState<BranchResponse | null>(null);
 
   useEffect(() => {
-    Promise.all([
-      apiFetch<BranchResponse[]>('/branches').catch(() => []),
+    setLoading(true);
+    const promises: [Promise<BranchResponse[]>, Promise<SpaServiceResponse[]>] = [
+      user ? apiFetch<BranchResponse[]>('/branches').catch(() => []) : Promise.resolve([]),
       apiFetch<SpaServiceResponse[]>('/services').catch(() => []),
-    ])
+    ];
+
+    Promise.all(promises)
       .then(([b, s]) => { setBranches(b); setServices(s); })
       .finally(() => setLoading(false));
-  }, []);
+  }, [user]);
 
   return (
     <div>
@@ -239,8 +242,66 @@ export default function HomePage() {
             </Link>
           </div>
 
-          {/* Branch cards — image first */}
-          {loading ? (
+          {/* If user is not logged in: Member-only Gate Card */}
+          {!user ? (
+            <div
+              className="relative rounded-3xl p-8 sm:p-12 overflow-hidden text-center max-w-4xl mx-auto"
+              style={{
+                background: 'rgba(14,12,8,0.92)',
+                border: '1px solid rgba(212,175,55,0.25)',
+                boxShadow: '0 32px 80px -16px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.04)',
+              }}
+            >
+              {/* Background ambient glow */}
+              <div
+                className="absolute top-0 left-1/2 -translate-x-1/2 w-96 h-48 pointer-events-none opacity-25"
+                style={{ background: 'radial-gradient(ellipse, rgba(212,175,55,0.35) 0%, transparent 70%)', filter: 'blur(30px)' }}
+              />
+
+              <div className="relative z-10 space-y-6 max-w-2xl mx-auto">
+                <div
+                  className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto"
+                  style={{ background: 'rgba(212,175,55,0.1)', border: '1px solid rgba(212,175,55,0.3)' }}
+                >
+                  <Lock className="w-8 h-8" style={{ color: 'var(--color-gold)' }} />
+                </div>
+
+                <div className="space-y-3">
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider" style={{ background: 'rgba(212,175,55,0.08)', color: 'var(--color-gold-light)' }}>
+                    <ShieldCheck className="w-3.5 h-3.5" /> Members Only Access
+                  </div>
+                  <h3
+                    className="text-3xl sm:text-4xl font-bold italic"
+                    style={{ fontFamily: 'var(--font-playfair)', color: 'var(--color-cream)' }}
+                  >
+                    Sign In to Explore Our Branches
+                  </h3>
+                  <p className="text-sm leading-relaxed" style={{ color: 'var(--color-parchment)', fontWeight: 300 }}>
+                    Our luxury branch locations in <strong>Bangalore (Koramangala, Indiranagar)</strong> and <strong>Chennai (Anna Nagar)</strong>, verified therapist attendance rosters, and appointment bookings are accessible exclusively to signed-in members.
+                  </p>
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-2">
+                  <Link
+                    href="/auth/login?redirect=/branches"
+                    className="btn-gold w-full sm:w-auto px-8 py-3.5 text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2"
+                    style={{ borderRadius: 12 }}
+                  >
+                    <span style={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <Lock className="w-4 h-4" /> Sign In to View Branches
+                    </span>
+                  </Link>
+                  <Link
+                    href="/auth/register?redirect=/branches"
+                    className="btn-ghost w-full sm:w-auto px-8 py-3.5 text-xs font-semibold flex items-center justify-center gap-2"
+                    style={{ borderRadius: 12 }}
+                  >
+                    Register Free <ArrowRight className="w-3.5 h-3.5" style={{ color: 'var(--color-gold)' }} />
+                  </Link>
+                </div>
+              </div>
+            </div>
+          ) : loading ? (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {[1, 2, 3].map(i => (
                 <div key={i} className="rounded-2xl overflow-hidden" style={{ background: 'var(--glass-bg)', border: '1px solid var(--glass-border)' }}>
@@ -336,7 +397,7 @@ export default function HomePage() {
                             : { background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', color: 'var(--color-parchment)' }
                           }
                         >
-                          {unlocked ? 'View Today\'s Roster' : 'View & Unlock'}
+                          {unlocked ? "View Today's Roster" : 'View & Unlock'}
                         </Link>
                         {b.mapsUrl && (
                           <a

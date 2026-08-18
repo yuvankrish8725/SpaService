@@ -40,9 +40,11 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // Public Endpoints
                         .requestMatchers("/api/v1/auth/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/v1/branches", "/api/v1/branches/*", "/api/v1/branches/*/services").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/services", "/api/v1/services/*").permitAll()
                         .requestMatchers("/api/v1/health", "/swagger-ui/**", "/v3/api-docs/**", "/api-docs/**").permitAll()
+
+                        // Branches require authenticated user
+                        .requestMatchers(HttpMethod.GET, "/api/v1/branches", "/api/v1/branches/**").authenticated()
 
                         // Agent Protected Endpoints
                         .requestMatchers("/api/v1/agent/**").hasAnyRole("AGENT", "ADMIN", "SUPER_ADMIN")

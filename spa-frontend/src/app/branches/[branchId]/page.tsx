@@ -46,7 +46,7 @@ export default function BranchDetailPage({ params }: PageProps) {
   const resolvedParams = use(params);
   const branchId = resolvedParams.branchId;
 
-  const { user, isBranchUnlocked, getBranchUnlockRemainingTime } = useAuth();
+  const { user, isBranchUnlocked, getBranchUnlockRemainingTime, isLoading: authLoading } = useAuth();
 
   const [branch, setBranch] = useState<BranchResponse | null>(null);
   const [services, setServices] = useState<SpaServiceResponse[]>([]);
@@ -82,6 +82,10 @@ export default function BranchDetailPage({ params }: PageProps) {
   }, []);
 
   useEffect(() => {
+    if (!user) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     Promise.all([
       apiFetch<BranchResponse>(`/branches/${branchId}`).catch(() => null),
@@ -90,16 +94,67 @@ export default function BranchDetailPage({ params }: PageProps) {
       if (b) setBranch(b);
       setServices(s);
     }).finally(() => setLoading(false));
-  }, [branchId]);
+  }, [user, branchId]);
 
   useEffect(() => {
-    if (!unlocked) return;
+    if (!unlocked || !user) return;
     setStaffLoading(true);
     apiFetch<StaffCardResponse[]>(`/branches/${branchId}/staff`)
       .then(st => setStaff(st))
       .catch(console.error)
       .finally(() => setStaffLoading(false));
-  }, [unlocked, branchId]);
+  }, [unlocked, branchId, user]);
+
+  if (!authLoading && !user) {
+    return (
+      <div className="min-h-[85vh] flex items-center justify-center px-4 py-20 relative overflow-hidden">
+        <div
+          className="modal-enter relative w-full max-w-lg p-8 sm:p-10 rounded-3xl text-center space-y-7 z-10"
+          style={{
+            background: 'rgba(14,12,8,0.96)',
+            border: '1px solid rgba(212,175,55,0.25)',
+            boxShadow: '0 32px 80px -16px rgba(0,0,0,0.8)',
+          }}
+        >
+          <div
+            className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto"
+            style={{ background: 'rgba(212,175,55,0.1)', border: '1px solid rgba(212,175,55,0.3)' }}
+          >
+            <Lock className="w-8 h-8" style={{ color: 'var(--color-gold)' }} />
+          </div>
+          <div className="space-y-3">
+            <h1
+              className="text-3xl font-bold italic"
+              style={{ fontFamily: 'var(--font-playfair)', color: 'var(--color-cream)' }}
+            >
+              Sign In to View Branch Details
+            </h1>
+            <p className="text-sm leading-relaxed max-w-sm mx-auto" style={{ color: 'var(--color-parchment)', fontWeight: 300 }}>
+              Please sign in to your account to view branch location details, schedules, and unlock today&apos;s therapist roster.
+            </p>
+          </div>
+          <div className="space-y-3">
+            <Link
+              href={`/auth/login?redirect=/branches/${branchId}`}
+              className="btn-gold w-full flex items-center justify-center gap-2 py-4 text-xs font-bold uppercase tracking-wider"
+              style={{ borderRadius: 12 }}
+            >
+              <span style={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Lock className="w-4 h-4" /> Sign In to Continue
+              </span>
+            </Link>
+            <Link
+              href={`/auth/register?redirect=/branches/${branchId}`}
+              className="btn-ghost w-full flex items-center justify-center gap-2 py-3.5 text-xs font-semibold"
+              style={{ borderRadius: 12 }}
+            >
+              Register Free <ArrowRight className="w-3.5 h-3.5" style={{ color: 'var(--color-gold)' }} />
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (

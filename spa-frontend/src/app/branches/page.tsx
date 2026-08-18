@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { apiFetch, BranchResponse } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { MapPin, Clock, Key, Lock, Phone, Search } from 'lucide-react';
+import { MapPin, Clock, Key, Lock, Phone, Search, ShieldCheck, ArrowRight, UserCheck } from 'lucide-react';
 import UnlockModal from '@/components/UnlockModal';
 
 const BRANCH_IMAGES = [
@@ -15,18 +15,22 @@ const BRANCH_IMAGES = [
 ];
 
 export default function BranchesPage() {
-  const { isBranchUnlocked, getBranchUnlockRemainingTime } = useAuth();
+  const { user, isBranchUnlocked, getBranchUnlockRemainingTime, isLoading: authLoading } = useAuth();
   const [branches, setBranches] = useState<BranchResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchCity, setSearchCity] = useState('');
   const [selectedBranchToUnlock, setSelectedBranchToUnlock] = useState<BranchResponse | null>(null);
 
   useEffect(() => {
+    if (!user) {
+      setLoading(false);
+      return;
+    }
     apiFetch<BranchResponse[]>('/branches')
       .then(data => setBranches(data))
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, []);
+  }, [user]);
 
   const filteredBranches = branches.filter(b =>
     b.name.toLowerCase().includes(searchCity.toLowerCase()) ||
@@ -35,6 +39,91 @@ export default function BranchesPage() {
   );
 
   const cities = Array.from(new Set(branches.map(b => b.city)));
+
+  // If user is not logged in, show the member gate
+  if (!authLoading && !user) {
+    return (
+      <div className="min-h-[85vh] flex items-center justify-center px-4 py-20 relative overflow-hidden">
+        {/* Ambient Glow */}
+        <div
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[400px] pointer-events-none opacity-25"
+          style={{ background: 'radial-gradient(ellipse, rgba(212,175,55,0.3) 0%, transparent 70%)', filter: 'blur(40px)' }}
+        />
+
+        <div
+          className="modal-enter relative w-full max-w-lg p-8 sm:p-10 rounded-3xl text-center space-y-7 z-10"
+          style={{
+            background: 'rgba(14,12,8,0.96)',
+            border: '1px solid rgba(212,175,55,0.25)',
+            boxShadow: '0 32px 80px -16px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.04)',
+          }}
+        >
+          {/* Lock Badge */}
+          <div
+            className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto"
+            style={{ background: 'rgba(212,175,55,0.1)', border: '1px solid rgba(212,175,55,0.3)' }}
+          >
+            <Lock className="w-8 h-8" style={{ color: 'var(--color-gold)' }} />
+          </div>
+
+          <div className="space-y-3">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider" style={{ background: 'rgba(212,175,55,0.08)', color: 'var(--color-gold-light)' }}>
+              <ShieldCheck className="w-3.5 h-3.5" /> Members Only Access
+            </div>
+            <h1
+              className="text-3xl sm:text-4xl font-bold italic"
+              style={{ fontFamily: 'var(--font-playfair)', color: 'var(--color-cream)' }}
+            >
+              Sign In to View Branches
+            </h1>
+            <p className="text-sm leading-relaxed max-w-sm mx-auto" style={{ color: 'var(--color-parchment)', fontWeight: 300 }}>
+              Our luxury branch locations, real-time therapist attendance, and booking slots are exclusively visible to signed-in members.
+            </p>
+          </div>
+
+          {/* Value Perks */}
+          <div
+            className="text-left space-y-2.5 p-4 rounded-xl text-xs"
+            style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', color: 'var(--color-parchment)' }}
+          >
+            <div className="flex items-center gap-2.5">
+              <span style={{ color: 'var(--color-jade)' }}>✓</span>
+              <span>Browse exclusive locations in Bangalore &amp; Chennai</span>
+            </div>
+            <div className="flex items-center gap-2.5">
+              <span style={{ color: 'var(--color-jade)' }}>✓</span>
+              <span>Unlock live therapist presence for today for ₹99</span>
+            </div>
+            <div className="flex items-center gap-2.5">
+              <span style={{ color: 'var(--color-jade)' }}>✓</span>
+              <span>Client account registration is 100% free</span>
+            </div>
+          </div>
+
+          {/* Action CTAs */}
+          <div className="space-y-3">
+            <Link
+              href="/auth/login?redirect=/branches"
+              className="btn-gold w-full flex items-center justify-center gap-2 py-4 text-xs font-bold uppercase tracking-wider"
+              style={{ borderRadius: 12 }}
+            >
+              <span style={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <UserCheck className="w-4 h-4" /> Sign In with Account
+              </span>
+            </Link>
+
+            <Link
+              href="/auth/register?redirect=/branches"
+              className="btn-ghost w-full flex items-center justify-center gap-2 py-3.5 text-xs font-semibold"
+              style={{ borderRadius: 12 }}
+            >
+              Create Free Account <ArrowRight className="w-3.5 h-3.5" style={{ color: 'var(--color-gold)' }} />
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -156,7 +245,7 @@ export default function BranchesPage() {
                         className="absolute top-4 left-4 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold"
                         style={{ background: 'rgba(10,9,6,0.85)', backdropFilter: 'blur(8px)', border: '1px solid rgba(212,175,55,0.3)', color: 'var(--color-gold-light)' }}
                       >
-                        <MapPin className="w-3 h-3" /> {branch.city}, {branch.state}
+                        <MapPin className="w-3.5 h-3.5" /> {branch.city}, {branch.state}
                       </div>
 
                       {/* Lock/unlock badge */}
@@ -223,7 +312,7 @@ export default function BranchesPage() {
                             : { background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', color: 'var(--color-parchment)' }
                           }
                         >
-                          {unlocked ? 'View Today\'s Roster' : 'View Branch'}
+                          {unlocked ? "View Today's Roster" : 'View Branch'}
                         </Link>
 
                         {!unlocked && (
