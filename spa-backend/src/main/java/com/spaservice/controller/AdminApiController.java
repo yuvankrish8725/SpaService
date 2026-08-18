@@ -11,9 +11,7 @@ import com.spaservice.dto.CheckinDtos.CheckinRequest;
 import com.spaservice.dto.PaymentDtos.PaymentSummaryDto;
 import com.spaservice.dto.ServiceDtos.SpaServiceRequest;
 import com.spaservice.dto.ServiceDtos.SpaServiceResponse;
-import com.spaservice.dto.StaffDtos.ProfilePhotoUpdateRequest;
-import com.spaservice.dto.StaffDtos.StaffCardResponse;
-import com.spaservice.dto.StaffDtos.StaffRequest;
+import com.spaservice.dto.StaffDtos.*;
 import com.spaservice.entity.AppointmentStatus;
 import com.spaservice.entity.User;
 import com.spaservice.repository.AppointmentRepository;
@@ -147,6 +145,22 @@ public class AdminApiController {
     public ResponseEntity<ApiResponse<Void>> deleteStaffProfilePhoto(@PathVariable UUID id) {
         staffService.deleteStaffProfilePhotoAdmin(id);
         return ResponseEntity.ok(ApiResponse.ok("Profile photo deleted", null));
+    }
+
+    @PostMapping("/staff/{id}/assign-branch")
+    public ResponseEntity<ApiResponse<StaffCardResponse>> assignStaffToBranch(
+            @PathVariable UUID id,
+            @Valid @RequestBody StaffBranchAssignRequest request) {
+        return ResponseEntity.ok(ApiResponse.ok("Staff branch reassigned successfully", staffService.assignStaffToBranch(id, request.getBranchId())));
+    }
+
+    @PutMapping("/staff/{id}/gallery")
+    public ResponseEntity<ApiResponse<StaffCardResponse>> updateStaffGallery(
+            @PathVariable UUID id,
+            @RequestBody StaffGalleryUpdateRequest request,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        User admin = userRepository.findById(userDetails.getId()).orElseThrow();
+        return ResponseEntity.ok(ApiResponse.ok("Staff gallery updated successfully", staffService.updateStaffGallery(id, request.getGalleryPhotoUrls(), admin, null)));
     }
 
     @PatchMapping("/staff/{id}/status")

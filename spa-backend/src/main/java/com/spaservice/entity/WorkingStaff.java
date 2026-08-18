@@ -31,6 +31,9 @@ public class WorkingStaff {
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;
 
+    @Column(name = "gallery_photo_urls", columnDefinition = "TEXT")
+    private String galleryPhotoUrls;
+
     @OneToOne(mappedBy = "staff", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private StaffProfilePhoto profilePhoto;
 
@@ -44,13 +47,14 @@ public class WorkingStaff {
 
     public WorkingStaff() {}
 
-    public WorkingStaff(UUID id, Branch branch, String name, String specialization, String bio, Boolean isActive, StaffProfilePhoto profilePhoto, ZonedDateTime createdAt, ZonedDateTime updatedAt) {
+    public WorkingStaff(UUID id, Branch branch, String name, String specialization, String bio, Boolean isActive, String galleryPhotoUrls, StaffProfilePhoto profilePhoto, ZonedDateTime createdAt, ZonedDateTime updatedAt) {
         this.id = id;
         this.branch = branch;
         this.name = name;
         this.specialization = specialization;
         this.bio = bio;
         this.isActive = isActive != null ? isActive : true;
+        this.galleryPhotoUrls = galleryPhotoUrls;
         this.profilePhoto = profilePhoto;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
@@ -65,6 +69,7 @@ public class WorkingStaff {
         private String specialization;
         private String bio;
         private Boolean isActive = true;
+        private String galleryPhotoUrls;
         private StaffProfilePhoto profilePhoto;
         private ZonedDateTime createdAt;
         private ZonedDateTime updatedAt;
@@ -75,12 +80,13 @@ public class WorkingStaff {
         public Builder specialization(String specialization) { this.specialization = specialization; return this; }
         public Builder bio(String bio) { this.bio = bio; return this; }
         public Builder isActive(Boolean isActive) { this.isActive = isActive; return this; }
+        public Builder galleryPhotoUrls(String galleryPhotoUrls) { this.galleryPhotoUrls = galleryPhotoUrls; return this; }
         public Builder profilePhoto(StaffProfilePhoto profilePhoto) { this.profilePhoto = profilePhoto; return this; }
         public Builder createdAt(ZonedDateTime createdAt) { this.createdAt = createdAt; return this; }
         public Builder updatedAt(ZonedDateTime updatedAt) { this.updatedAt = updatedAt; return this; }
 
         public WorkingStaff build() {
-            return new WorkingStaff(id, branch, name, specialization, bio, isActive, profilePhoto, createdAt, updatedAt);
+            return new WorkingStaff(id, branch, name, specialization, bio, isActive, galleryPhotoUrls, profilePhoto, createdAt, updatedAt);
         }
     }
 
@@ -96,6 +102,8 @@ public class WorkingStaff {
     public void setBio(String bio) { this.bio = bio; }
     public Boolean getIsActive() { return isActive; }
     public void setIsActive(Boolean isActive) { this.isActive = isActive; }
+    public String getGalleryPhotoUrls() { return galleryPhotoUrls; }
+    public void setGalleryPhotoUrls(String galleryPhotoUrls) { this.galleryPhotoUrls = galleryPhotoUrls; }
     public StaffProfilePhoto getProfilePhoto() { return profilePhoto; }
     public void setProfilePhoto(StaffProfilePhoto profilePhoto) { this.profilePhoto = profilePhoto; }
     public ZonedDateTime getCreatedAt() { return createdAt; }

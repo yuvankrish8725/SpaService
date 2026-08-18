@@ -32,11 +32,15 @@ export default function TherapistGalleryModal({
 
   if (!isOpen || !staff) return null;
 
-  // Build photo array: main profile photo + treatment studio gallery
-  const photos = [
-    staff.profilePhotoUrl || 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=800&auto=format&fit=crop&q=80',
-    ...DEFAULT_GALLERY_PHOTOS.slice(0, 3),
+  // Build photo array: main profile photo + dynamic gallery photos
+  const rawPhotos = [
+    ...(staff.profilePhotoUrl ? [staff.profilePhotoUrl] : []),
+    ...((staff.galleryPhotos && staff.galleryPhotos.length > 0)
+      ? staff.galleryPhotos
+      : DEFAULT_GALLERY_PHOTOS.slice(0, 3)
+    ),
   ];
+  const photos = rawPhotos.length > 0 ? Array.from(new Set(rawPhotos)) : DEFAULT_GALLERY_PHOTOS;
 
   const present = staff.presentToday ?? (staff.todayCheckinStatus === 'PRESENT');
 

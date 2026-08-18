@@ -12,6 +12,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -85,6 +87,7 @@ public class StaffService {
                 .name(request.getName())
                 .specialization(request.getSpecialization())
                 .bio(request.getBio())
+                .galleryPhotoUrls(request.getGalleryPhotoUrls())
                 .isActive(true)
                 .build();
 
@@ -116,6 +119,9 @@ public class StaffService {
         staff.setName(request.getName());
         staff.setSpecialization(request.getSpecialization());
         staff.setBio(request.getBio());
+        if (request.getGalleryPhotoUrls() != null) {
+            staff.setGalleryPhotoUrls(request.getGalleryPhotoUrls());
+        }
 
         staff = staffRepository.save(staff);
 
@@ -133,6 +139,38 @@ public class StaffService {
                 photoRepository.save(photo);
             }
         }
+
+        return mapToStaffCardResponse(staff, LocalDate.now());
+    }
+
+    @Transactional
+    public StaffCardResponse assignStaffToBranch(UUID staffId, UUID targetBranchId) {
+        WorkingStaff staff = staffRepository.findById(staffId)
+                .orElseThrow(() -> new ResourceNotFoundException("Staff", "id", staffId));
+
+        Branch targetBranch = branchRepository.findById(targetBranchId)
+                .orElseThrow(() -> new ResourceNotFoundException("Branch", "id", targetBranchId));
+
+        staff.setBranch(targetBranch);
+        staff = staffRepository.save(staff);
+
+        return mapToStaffCardResponse(staff, LocalDate.now());
+    }
+
+    @Transactional
+    public StaffCardResponse updateStaffGallery(UUID staffId, String galleryPhotoUrls, User actorUser, UUID agentAssignedBranchId) {
+        WorkingStaff staff = staffRepository.findById(staffId)
+                .orElseThrow(() -> new ResourceNotFoundException("Staff", "id", staffId));
+
+        // If Agent, verify staff belongs to their assigned branch
+        if (actorUser.getRole() == Role.AGENT) {
+            if (agentAssignedBranchId == null || !staff.getBranch().getId().equals(agentAssignedBranchId)) {
+                throw new UnauthorizedException("You can only update gallery for staff at your assigned branch");
+            }
+        }
+
+        staff.setGalleryPhotoUrls(galleryPhotoUrls);
+        staff = staffRepository.save(staff);
 
         return mapToStaffCardResponse(staff, LocalDate.now());
     }
@@ -196,6 +234,14 @@ public class StaffService {
             isBookable = (checkin.getStatus() == CheckinStatus.PRESENT);
         }
 
+        List<String> galleryList = Collections.emptyList();
+        if (staff.getGalleryPhotoUrls() != null && !staff.getGalleryPhotoUrls().isBlank()) {
+            galleryList = Arrays.stream(staff.getGalleryPhotoUrls().split(","))
+                    .map(String::trim)
+                    .filter(s -> !s.isBlank())
+                    .collect(Collectors.toList());
+        }
+
         return StaffCardResponse.builder()
                 .id(staff.getId())
                 .branchId(staff.getBranch().getId())
@@ -204,6 +250,8 @@ public class StaffService {
                 .specialization(staff.getSpecialization())
                 .bio(staff.getBio())
                 .profilePhotoUrl(photoUrl)
+                .galleryPhotoUrls(staff.getGalleryPhotoUrls())
+                .galleryPhotos(galleryList)
                 .todayCheckinStatus(checkinStatus)
                 .checkinConfirmedAt(confirmedAt)
                 .isBookable(isBookable)

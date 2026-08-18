@@ -61,6 +61,8 @@ export interface StaffCardResponse {
   specializations?: string[];
   bio?: string;
   profilePhotoUrl?: string;
+  galleryPhotoUrls?: string;
+  galleryPhotos?: string[];
   todayCheckinStatus: 'PRESENT' | 'ON_LEAVE' | 'NOT_CONFIRMED_YET';
   presentToday: boolean; // true when todayCheckinStatus === 'PRESENT'
   checkinConfirmedAt?: string;

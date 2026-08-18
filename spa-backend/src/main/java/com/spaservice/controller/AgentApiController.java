@@ -59,6 +59,17 @@ public class AgentApiController {
         return ResponseEntity.ok(ApiResponse.ok("Profile photo updated successfully", null));
     }
 
+    @PutMapping("/staff/{staffId}/gallery")
+    public ResponseEntity<ApiResponse<StaffCardResponse>> updateStaffGallery(
+            @PathVariable UUID staffId,
+            @RequestBody com.spaservice.dto.StaffDtos.StaffGalleryUpdateRequest request,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        User user = userRepository.findById(userDetails.getId())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        StaffCardResponse updated = staffService.updateStaffGallery(staffId, request.getGalleryPhotoUrls(), user, userDetails.getAssignedBranchId());
+        return ResponseEntity.ok(ApiResponse.ok("Staff gallery updated successfully", updated));
+    }
+
     @PostMapping("/staff/{staffId}/checkin")
     public ResponseEntity<ApiResponse<Void>> confirmDailyCheckin(
             @PathVariable UUID staffId,
