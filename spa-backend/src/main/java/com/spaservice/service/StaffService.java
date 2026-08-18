@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -42,7 +43,8 @@ public class StaffService {
         boolean isStaffOrAdmin = clientUser.getRole() == Role.ADMIN || clientUser.getRole() == Role.SUPER_ADMIN;
 
         if (!isStaffOrAdmin) {
-            boolean isUnlocked = branchUnlockRepository.isBranchUnlockedForClient(clientUser.getId(), branchId, ZonedDateTime.now());
+            ZonedDateTime nowIst = ZonedDateTime.now(ZoneId.of("Asia/Kolkata"));
+            boolean isUnlocked = branchUnlockRepository.isBranchUnlockedForClient(clientUser.getId(), branchId, nowIst);
             if (!isUnlocked) {
                 throw new BranchLockedException(branchId, branch.getName());
             }

@@ -123,7 +123,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') return true;
 
     const now = new Date().getTime();
-    return activeUnlocks.some(u => u.branchId === branchId && new Date(u.expiresAt).getTime() > now);
+    return activeUnlocks.some(u => {
+      if (!u || !u.branchId) return false;
+      const idMatch = String(u.branchId).toLowerCase().trim() === String(branchId).toLowerCase().trim();
+      const expiresTime = new Date(u.expiresAt).getTime();
+      const notExpired = isNaN(expiresTime) || expiresTime > (now - 300000);
+      return idMatch && notExpired;
+    });
   };
 
   const getBranchUnlockRemainingTime = (branchId: string): string | null => {

@@ -2,40 +2,37 @@
 
 import React, { useState, useEffect, use } from 'react';
 import Link from 'next/link';
-import { apiFetch, BranchResponse, SpaServiceResponse, StaffCardResponse } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { MapPin, Clock, Phone, Lock, Key, XCircle, CheckCircle2, ArrowRight, ChevronLeft, Calendar } from 'lucide-react';
+import {
+  apiFetch,
+  BranchResponse,
+  SpaServiceResponse,
+  StaffCardResponse,
+} from '@/lib/api';
+import {
+  MapPin, Clock, Phone, Calendar, Key, CheckCircle2,
+  Lock, Sparkles, Image as ImageIcon,
+} from 'lucide-react';
 import UnlockModal from '@/components/UnlockModal';
 import BookingModal from '@/components/BookingModal';
+import TherapistGalleryModal from '@/components/TherapistGalleryModal';
 
 interface PageProps {
   params: Promise<{ branchId: string }>;
 }
 
-/* ── Blurred staff silhouette card ──────────────────────── */
 function LockedStaffCard() {
   return (
     <div
-      className="rounded-2xl p-6 flex flex-col gap-4"
-      style={{
-        background: 'var(--glass-bg)',
-        border: '1px solid var(--glass-border)',
-        filter: 'blur(4px)',
-        userSelect: 'none',
-        pointerEvents: 'none',
-        opacity: 0.6,
-      }}
+      className="glass-card p-6 flex flex-col gap-4 relative overflow-hidden select-none"
+      style={{ borderRadius: 20, filter: 'blur(3px)', opacity: 0.45 }}
     >
       <div className="flex items-center gap-4">
         <div className="w-16 h-16 rounded-full" style={{ background: 'rgba(255,255,255,0.08)' }} />
-        <div className="flex-1 space-y-2">
-          <div className="h-4 rounded" style={{ background: 'rgba(255,255,255,0.1)', width: '70%' }} />
-          <div className="h-3 rounded" style={{ background: 'rgba(255,255,255,0.06)', width: '50%' }} />
+        <div className="space-y-2 flex-1">
+          <div className="h-4 w-3/4 rounded-md" style={{ background: 'rgba(255,255,255,0.1)' }} />
+          <div className="h-3 w-1/2 rounded-md" style={{ background: 'rgba(255,255,255,0.06)' }} />
         </div>
-      </div>
-      <div className="flex gap-2">
-        <div className="h-6 rounded-full" style={{ background: 'rgba(255,255,255,0.07)', width: 80 }} />
-        <div className="h-6 rounded-full" style={{ background: 'rgba(255,255,255,0.07)', width: 100 }} />
       </div>
       <div className="h-10 rounded-xl" style={{ background: 'rgba(255,255,255,0.05)' }} />
     </div>
@@ -53,14 +50,18 @@ export default function BranchDetailPage({ params }: PageProps) {
   const [staff, setStaff] = useState<StaffCardResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [staffLoading, setStaffLoading] = useState(false);
+  const [serverUnlocked, setServerUnlocked] = useState<boolean | null>(null);
 
   const [unlockModalOpen, setUnlockModalOpen] = useState(false);
   const [bookingModalOpen, setBookingModalOpen] = useState(false);
+  const [galleryModalOpen, setGalleryModalOpen] = useState(false);
+  const [selectedStaffForGallery, setSelectedStaffForGallery] = useState<StaffCardResponse | null>(null);
   const [selectedStaffForBooking, setSelectedStaffForBooking] = useState<StaffCardResponse | null>(null);
   const [selectedServiceForBooking, setSelectedServiceForBooking] = useState<SpaServiceResponse | null>(null);
   const [countdown, setCountdown] = useState('');
 
-  const unlocked = isBranchUnlocked(branchId);
+  // Unlocked status determined by server verification or local auth context
+  const unlocked = serverUnlocked !== null ? serverUnlocked : isBranchUnlocked(branchId);
   const remainingTime = getBranchUnlockRemainingTime(branchId);
 
   // Live countdown to 23:59:59 IST
@@ -81,6 +82,7 @@ export default function BranchDetailPage({ params }: PageProps) {
     return () => clearInterval(id);
   }, []);
 
+  // Fetch branch and service details
   useEffect(() => {
     if (!user) {
       setLoading(false);
@@ -96,14 +98,23 @@ export default function BranchDetailPage({ params }: PageProps) {
     }).finally(() => setLoading(false));
   }, [user, branchId]);
 
+  // Attempt to fetch staff roster directly to determine backend unlock state
   useEffect(() => {
-    if (!unlocked || !user) return;
+    if (!user) return;
     setStaffLoading(true);
     apiFetch<StaffCardResponse[]>(`/branches/${branchId}/staff`)
-      .then(st => setStaff(st))
-      .catch(console.error)
+      .then(st => {
+        setStaff(st || []);
+        setServerUnlocked(true);
+      })
+      .catch(() => {
+        // If forbidden or locked, mark locked
+        if (user.role !== 'ADMIN' && user.role !== 'SUPER_ADMIN') {
+          setServerUnlocked(false);
+        }
+      })
       .finally(() => setStaffLoading(false));
-  }, [unlocked, branchId, user]);
+  }, [branchId, user, unlockModalOpen]);
 
   if (!authLoading && !user) {
     return (
@@ -139,16 +150,14 @@ export default function BranchDetailPage({ params }: PageProps) {
               className="btn-gold w-full flex items-center justify-center gap-2 py-4 text-xs font-bold uppercase tracking-wider"
               style={{ borderRadius: 12 }}
             >
-              <span style={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Lock className="w-4 h-4" /> Sign In to Continue
-              </span>
+              <span style={{ position: 'relative', zIndex: 2 }}>Sign In to Continue</span>
             </Link>
             <Link
-              href={`/auth/register?redirect=/branches/${branchId}`}
-              className="btn-ghost w-full flex items-center justify-center gap-2 py-3.5 text-xs font-semibold"
-              style={{ borderRadius: 12 }}
+              href="/auth/register"
+              className="block w-full py-3.5 text-xs font-semibold uppercase tracking-wider text-center"
+              style={{ color: 'var(--color-gold)' }}
             >
-              Register Free <ArrowRight className="w-3.5 h-3.5" style={{ color: 'var(--color-gold)' }} />
+              Create Free Account →
             </Link>
           </div>
         </div>
@@ -158,45 +167,49 @@ export default function BranchDetailPage({ params }: PageProps) {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 rounded-full" style={{ border: '2px solid rgba(212,175,55,0.3)', borderTop: '2px solid var(--color-gold)', animation: 'spin 0.8s linear infinite' }} />
-          <p className="text-sm" style={{ color: 'var(--color-muted)' }}>Loading branch details…</p>
-        </div>
+      <div className="max-w-7xl mx-auto px-4 py-20 space-y-8 animate-pulse">
+        <div className="h-6 w-32 bg-white/10 rounded-full" />
+        <div className="h-12 w-2/3 bg-white/10 rounded-2xl" />
+        <div className="h-64 bg-white/5 rounded-3xl" />
       </div>
     );
   }
 
   if (!branch) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4">
-        <p className="text-xl font-semibold" style={{ color: 'var(--color-cream)' }}>Branch not found</p>
-        <Link href="/branches" className="text-sm" style={{ color: 'var(--color-gold)' }}>← Back to Branches</Link>
+      <div className="min-h-[60vh] flex flex-col items-center justify-center text-center p-8">
+        <MapPin className="w-12 h-12 mb-4" style={{ color: 'var(--color-gold)' }} />
+        <h2 className="text-2xl font-bold italic mb-2" style={{ fontFamily: 'var(--font-playfair)', color: 'var(--color-cream)' }}>Branch Not Found</h2>
+        <p className="text-sm mb-6" style={{ color: 'var(--color-muted)' }}>The sanctuary you are looking for does not exist or has been relocated.</p>
+        <Link href="/client/dashboard" className="btn-gold px-6 py-3 text-xs font-bold uppercase tracking-wider" style={{ borderRadius: 10 }}>
+          <span style={{ position: 'relative', zIndex: 2 }}>Return to Dashboard</span>
+        </Link>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen pb-20">
+    <div className="min-h-screen pb-24">
 
-      {/* ── Branch Hero Banner ──────────────────────────── */}
+      {/* ── Hero Banner ─────────────────────────────────── */}
       <section
-        className="relative py-16 px-4 sm:px-6 lg:px-8 overflow-hidden"
-        style={{ background: 'linear-gradient(to bottom, rgba(212,175,55,0.05), transparent)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}
+        className="relative pt-12 pb-16 px-4 sm:px-6 lg:px-8 border-b"
+        style={{
+          background: 'linear-gradient(to bottom, rgba(14,12,8,0.95), rgba(10,9,6,0.98))',
+          borderColor: 'rgba(255,255,255,0.06)',
+        }}
       >
         <div className="max-w-7xl mx-auto">
-          {/* Back link */}
+          {/* Breadcrumb */}
           <Link
-            href="/branches"
-            className="inline-flex items-center gap-2 text-sm mb-8 transition-colors duration-200"
-            style={{ color: 'var(--color-muted)' }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--color-gold-light)'; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--color-muted)'; }}
+            href="/client/dashboard"
+            className="inline-flex items-center gap-2 text-xs font-semibold mb-6 transition-colors duration-200"
+            style={{ color: 'var(--color-gold)' }}
           >
-            <ChevronLeft className="w-4 h-4" /> All Branches
+            ← Back to Dashboard
           </Link>
 
-          <div className="flex flex-col lg:flex-row gap-8 items-start">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8">
             {/* Branch info */}
             <div className="flex-1">
               <div
@@ -235,8 +248,6 @@ export default function BranchDetailPage({ params }: PageProps) {
                     rel="noopener noreferrer"
                     className="flex items-center gap-2 font-medium transition-colors duration-200"
                     style={{ color: 'var(--color-gold)' }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--color-gold-light)'; }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--color-gold)'; }}
                   >
                     <MapPin className="w-4 h-4" /> View on Google Maps ↗
                   </a>
@@ -256,10 +267,10 @@ export default function BranchDetailPage({ params }: PageProps) {
                     <span className="font-bold">Today&apos;s Roster Unlocked</span>
                   </div>
                   <div className="text-sm" style={{ color: 'var(--color-jade)', fontFamily: 'var(--font-mono)' }}>
-                    ⏱ {countdown}
+                    ⏱ {remainingTime ? `${remainingTime} remaining` : countdown}
                   </div>
                   <div className="text-xs" style={{ color: 'var(--color-muted)' }}>
-                    Access expires at 11:59 PM IST tonight. Scroll down to view all therapists.
+                    Access active until 11:59 PM IST tonight. Browse verified therapists below.
                   </div>
                 </div>
               ) : (
@@ -311,7 +322,7 @@ export default function BranchDetailPage({ params }: PageProps) {
               <div className="flex items-center gap-2 mb-2">
                 <div className="w-6 h-px" style={{ background: 'var(--color-gold)' }} />
                 <span className="text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--color-gold)' }}>
-                  {unlocked ? "Today's Active Roster" : 'Certified Therapists'}
+                  {unlocked ? "Today's Active Certified Roster" : 'Certified Therapists'}
                 </span>
               </div>
               <h2
@@ -360,19 +371,11 @@ export default function BranchDetailPage({ params }: PageProps) {
                     See exactly who is confirmed present today at {branch.city}. Valid until 11:59 PM IST.
                   </p>
 
-                  <div
-                    className="flex items-center justify-between p-4 rounded-xl mb-5 text-sm"
-                    style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}
-                  >
-                    <span style={{ color: 'var(--color-muted)' }}>₹99 base + 2% tax</span>
-                    <span className="font-bold text-xl" style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-gold-light)' }}>₹100.98</span>
-                  </div>
-
                   <div className="space-y-2 mb-6">
                     {[
                       'View all confirmed therapists today',
-                      'See specializations & live presence badge',
-                      'Book your session immediately',
+                      'See therapist photo gallery & verified qualifications',
+                      'Directly book your preferred therapist',
                     ].map(item => (
                       <div key={item} className="flex items-center gap-2 text-xs text-left" style={{ color: 'var(--color-parchment)' }}>
                         <CheckCircle2 className="w-4 h-4 shrink-0" style={{ color: 'var(--color-jade)' }} />
@@ -395,12 +398,12 @@ export default function BranchDetailPage({ params }: PageProps) {
             </div>
           )}
 
-          {/* ── UNLOCKED STATE: Staff grid ─────────────── */}
+          {/* ── UNLOCKED STATE: Staff grid + Photo Gallery + Booking ─────── */}
           {unlocked && (
             staffLoading ? (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {[1, 2, 3].map(i => (
-                  <div key={i} className="h-56 rounded-2xl bg-white/5 animate-pulse" />
+                  <div key={i} className="h-72 rounded-2xl bg-white/5 animate-pulse" />
                 ))}
               </div>
             ) : staff.length === 0 ? (
@@ -412,97 +415,109 @@ export default function BranchDetailPage({ params }: PageProps) {
                 <p className="text-sm" style={{ color: 'var(--color-muted)' }}>Check back after 8:30 AM for daily check-ins.</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {staff.map(s => {
-                  const present = s.presentToday;
+                  const present = s.presentToday ?? (s.todayCheckinStatus === 'PRESENT');
+
                   return (
                     <div
                       key={s.id}
-                      className="glass-card p-6 flex flex-col gap-5"
-                      style={{ borderRadius: 20, borderColor: present ? 'rgba(52,211,153,0.15)' : 'var(--glass-border)' }}
+                      className="glass-card p-6 flex flex-col justify-between gap-5 transition-all duration-300 group hover:border-amber-400/40"
+                      style={{ borderRadius: 24, borderColor: present ? 'rgba(52,211,153,0.2)' : 'var(--glass-border)' }}
                     >
-                      {/* Avatar + presence ring */}
-                      <div className="flex items-center gap-4">
-                        <div
-                          className="relative shrink-0"
-                          style={{
-                            padding: 2,
-                            borderRadius: '50%',
-                            background: present
-                              ? 'linear-gradient(135deg, rgba(52,211,153,0.5), rgba(52,211,153,0.1))'
-                              : 'rgba(255,255,255,0.06)',
-                          }}
-                        >
-                          <div
-                            className="w-16 h-16 rounded-full overflow-hidden"
-                            style={{ background: 'rgba(255,255,255,0.08)' }}
+                      <div className="space-y-4">
+                        {/* Avatar + presence badge + Gallery trigger */}
+                        <div className="flex items-start gap-4">
+                          <button
+                            onClick={() => {
+                              setSelectedStaffForGallery(s);
+                              setGalleryModalOpen(true);
+                            }}
+                            title="Click to view photo gallery"
+                            className="relative shrink-0 group/photo cursor-pointer"
+                            style={{
+                              padding: 2,
+                              borderRadius: '50%',
+                              background: present
+                                ? 'linear-gradient(135deg, rgba(52,211,153,0.6), rgba(212,175,55,0.4))'
+                                : 'rgba(255,255,255,0.06)',
+                            }}
                           >
-                            {s.profilePhotoUrl ? (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img src={s.profilePhotoUrl} alt={s.name} className="w-full h-full object-cover" />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center text-xl font-bold" style={{ color: 'var(--color-gold)', fontFamily: 'var(--font-playfair)' }}>
-                                {s.name.split(' ').map((w: string) => w[0]).slice(0, 2).join('')}
+                            <div
+                              className="w-20 h-20 rounded-full overflow-hidden relative"
+                              style={{ background: 'rgba(255,255,255,0.08)' }}
+                            >
+                              {s.profilePhotoUrl ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={s.profilePhotoUrl}
+                                  alt={s.name}
+                                  className="w-full h-full object-cover transition-transform duration-500 group-hover/photo:scale-110"
+                                />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-xl font-bold" style={{ color: 'var(--color-gold)', fontFamily: 'var(--font-playfair)' }}>
+                                  {s.name.split(' ').map((w: string) => w[0]).slice(0, 2).join('')}
+                                </div>
+                              )}
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/photo:opacity-100 transition-opacity flex items-center justify-center">
+                                <ImageIcon className="w-5 h-5 text-white" />
                               </div>
-                            )}
-                          </div>
-                        </div>
+                            </div>
+                          </button>
 
-                        <div className="flex-1 min-w-0">
-                          <h3
-                            className="font-bold text-base truncate"
-                            style={{ fontFamily: 'var(--font-playfair)', color: 'var(--color-cream)' }}
-                          >
-                            {s.name}
-                          </h3>
-                          {present ? (
-                            <div className="badge-jade mt-1.5 inline-flex">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-1">
+                              <h3
+                                className="font-bold text-lg truncate"
+                                style={{ fontFamily: 'var(--font-playfair)', color: 'var(--color-cream)' }}
+                              >
+                                {s.name}
+                              </h3>
+                            </div>
+                            <div className="text-xs font-semibold mt-0.5" style={{ color: 'var(--color-gold-light)' }}>
+                              {s.specialization || 'Certified Wellness Specialist'}
+                            </div>
+                            <div className="badge-jade mt-2 inline-flex text-[11px] px-2.5 py-0.5">
                               <span className="presence-dot-present" />
                               Present Today
                             </div>
-                          ) : (
-                            <div className="badge-rose mt-1.5 inline-flex">
-                              <XCircle className="w-3 h-3" />
-                              On Leave
-                            </div>
-                          )}
+                          </div>
                         </div>
+
+                        {/* Bio */}
+                        <p className="text-xs leading-relaxed line-clamp-2" style={{ color: 'var(--color-muted)' }}>
+                          {s.bio || 'Experienced holistic therapy practitioner specializing in muscle recovery and calming aromatherapy.'}
+                        </p>
                       </div>
 
-                      {/* Specializations */}
-                      {s.specializations && s.specializations.length > 0 && (
-                        <div className="flex flex-wrap gap-2">
-                          {s.specializations.map((spec: string) => (
-                            <span
-                              key={spec}
-                              className="px-2.5 py-1 rounded-full text-[11px] font-medium"
-                              style={{ background: 'rgba(212,175,55,0.08)', border: '1px solid rgba(212,175,55,0.15)', color: 'var(--color-gold-light)' }}
-                            >
-                              {spec}
-                            </span>
-                          ))}
-                        </div>
-                      )}
+                      {/* Action Buttons: View Gallery & Book Session */}
+                      <div className="space-y-2 pt-2 border-t border-white/5">
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => {
+                              setSelectedStaffForGallery(s);
+                              setGalleryModalOpen(true);
+                            }}
+                            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer"
+                            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'var(--color-parchment)' }}
+                          >
+                            <ImageIcon className="w-3.5 h-3.5 text-amber-400" /> View Gallery
+                          </button>
 
-                      {/* Book button */}
-                      <button
-                        disabled={!present}
-                        onClick={() => {
-                          if (present) {
-                            setSelectedStaffForBooking(s);
-                            setBookingModalOpen(true);
-                          }
-                        }}
-                        className="w-full py-3 rounded-xl text-xs font-bold uppercase tracking-wide transition-all duration-200 cursor-pointer"
-                        style={present
-                          ? { background: 'linear-gradient(135deg, #D4AF37, #A08828)', color: '#0A0906' }
-                          : { background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', color: 'var(--color-muted)', cursor: 'not-allowed', opacity: 0.5 }
-                        }
-                      >
-                        <span className="flex items-center justify-center gap-2">
-                          {present ? <><Calendar className="w-3.5 h-3.5" /> Book Session</> : 'Not Available Today'}
-                        </span>
-                      </button>
+                          <button
+                            onClick={() => {
+                              setSelectedStaffForBooking(s);
+                              setBookingModalOpen(true);
+                            }}
+                            className="btn-gold flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-bold uppercase tracking-wider cursor-pointer"
+                            style={{ borderRadius: 12 }}
+                          >
+                            <span style={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <Calendar className="w-3.5 h-3.5" /> Book
+                            </span>
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   );
                 })}
@@ -512,86 +527,102 @@ export default function BranchDetailPage({ params }: PageProps) {
         </div>
       </section>
 
-      {/* ── Services at this branch ──────────────────────── */}
-      {services.length > 0 && (
-        <section className="py-16 px-4 sm:px-6 lg:px-8" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-          <div className="max-w-7xl mx-auto">
-            <div className="flex items-center gap-2 mb-8">
+      {/* ── Treatments Section ──────────────────────────── */}
+      <section className="py-16 px-4 sm:px-6 lg:px-8 border-t border-white/5">
+        <div className="max-w-7xl mx-auto">
+          <div className="mb-10">
+            <div className="flex items-center gap-2 mb-2">
               <div className="w-6 h-px" style={{ background: 'var(--color-gold)' }} />
-              <span className="text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--color-gold)' }}>
-                Available Treatments
-              </span>
+              <span className="text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--color-gold)' }}>Signature Offerings</span>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-              {services.map(svc => (
-                <div
-                  key={svc.id}
-                  className="glass-card p-5 flex flex-col justify-between gap-4"
-                  style={{ borderRadius: 16 }}
-                >
-                  <div>
-                    <span
-                      className="inline-block px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider mb-3"
-                      style={{ background: 'rgba(212,175,55,0.08)', border: '1px solid rgba(212,175,55,0.2)', color: 'var(--color-gold-light)' }}
-                    >
-                      {svc.category}
-                    </span>
-                    <h3
-                      className="font-bold text-sm"
-                      style={{ fontFamily: 'var(--font-playfair)', color: 'var(--color-cream)' }}
-                    >
-                      {svc.name}
-                    </h3>
-                    <p className="text-xs mt-1.5 leading-relaxed line-clamp-2" style={{ color: 'var(--color-muted)' }}>
-                      {svc.description}
-                    </p>
-                  </div>
-                  <div className="flex items-center justify-between pt-3" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-                    <div>
-                      <div className="text-[10px] uppercase" style={{ color: 'var(--color-muted)' }}>{svc.durationMinutes} min</div>
-                      <div className="font-bold text-base" style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-gold-light)' }}>₹{svc.price}</div>
-                    </div>
-                    {unlocked && (
-                      <button
-                        onClick={() => { setSelectedServiceForBooking(svc); setBookingModalOpen(true); }}
-                        className="flex items-center gap-1 text-xs font-semibold cursor-pointer transition-colors duration-200"
-                        style={{ color: 'var(--color-gold)' }}
-                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--color-gold-light)'; }}
-                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--color-gold)'; }}
-                      >
-                        Book <ArrowRight className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
+            <h2 className="text-3xl font-bold italic" style={{ fontFamily: 'var(--font-playfair)', color: 'var(--color-cream)' }}>
+              Available Treatments
+            </h2>
           </div>
-        </section>
-      )}
 
-      {/* Modals */}
-      {unlockModalOpen && branch && (
-        <UnlockModal
-          isOpen={unlockModalOpen}
-          onClose={() => setUnlockModalOpen(false)}
-          branchId={branchId}
-          branchName={branch.name}
-          branchCity={branch.city}
-          onSuccess={() => { setUnlockModalOpen(false); window.location.reload(); }}
-        />
-      )}
-      {bookingModalOpen && branch && (
-        <BookingModal
-          isOpen={bookingModalOpen}
-          onClose={() => { setBookingModalOpen(false); setSelectedStaffForBooking(null); setSelectedServiceForBooking(null); }}
-          branchId={branchId}
-          branchName={branch.name}
-          branchCity={branch.city}
-          preselectedStaff={selectedStaffForBooking}
-          preselectedService={selectedServiceForBooking}
-        />
-      )}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+            {services.map(svc => (
+              <div
+                key={svc.id}
+                className="glass-card p-6 flex flex-col justify-between gap-4"
+                style={{ borderRadius: 18 }}
+              >
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-full mb-3 inline-block" style={{ background: 'rgba(212,175,55,0.08)', color: 'var(--color-gold-light)' }}>
+                    {svc.category}
+                  </span>
+                  <h3 className="font-bold text-base mb-2 italic" style={{ fontFamily: 'var(--font-playfair)', color: 'var(--color-cream)' }}>
+                    {svc.name}
+                  </h3>
+                  <p className="text-xs line-clamp-2 leading-relaxed" style={{ color: 'var(--color-muted)' }}>
+                    {svc.description}
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-between pt-3 border-t border-white/5">
+                  <div>
+                    <div className="text-[10px] uppercase" style={{ color: 'var(--color-muted)' }}>{svc.durationMinutes} MIN</div>
+                    <div className="text-base font-bold" style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-gold-light)' }}>
+                      ₹{svc.price}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setSelectedServiceForBooking(svc);
+                      setBookingModalOpen(true);
+                    }}
+                    className="btn-gold px-3 py-1.5 text-xs font-bold uppercase tracking-wider cursor-pointer"
+                    style={{ borderRadius: 8 }}
+                  >
+                    <span style={{ position: 'relative', zIndex: 2 }}>Book</span>
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Therapist Gallery Modal ────────────────────── */}
+      <TherapistGalleryModal
+        isOpen={galleryModalOpen}
+        onClose={() => { setGalleryModalOpen(false); setSelectedStaffForGallery(null); }}
+        staff={selectedStaffForGallery}
+        branchName={branch.name}
+        branchCity={branch.city}
+        onBook={(st) => {
+          setSelectedStaffForBooking(st);
+          setBookingModalOpen(true);
+        }}
+      />
+
+      {/* ── Unlock Modal ───────────────────────────────── */}
+      <UnlockModal
+        isOpen={unlockModalOpen}
+        onClose={() => setUnlockModalOpen(false)}
+        branchId={branch.id}
+        branchName={branch.name}
+        branchCity={branch.city}
+        onSuccess={() => {
+          setServerUnlocked(true);
+          apiFetch<StaffCardResponse[]>(`/branches/${branch.id}/staff`).then(st => setStaff(st || [])).catch(console.error);
+        }}
+      />
+
+      {/* ── Booking Modal ──────────────────────────────── */}
+      <BookingModal
+        isOpen={bookingModalOpen}
+        onClose={() => {
+          setBookingModalOpen(false);
+          setSelectedStaffForBooking(null);
+          setSelectedServiceForBooking(null);
+        }}
+        branchId={branch.id}
+        branchName={branch.name}
+        branchCity={branch.city}
+        initialStaff={selectedStaffForBooking}
+        initialService={selectedServiceForBooking}
+      />
     </div>
   );
 }

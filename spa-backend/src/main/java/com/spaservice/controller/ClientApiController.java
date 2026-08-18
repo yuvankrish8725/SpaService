@@ -48,7 +48,7 @@ public class ClientApiController {
     public ResponseEntity<ApiResponse<List<BranchUnlockDto>>> getMyActiveUnlocks(
             @AuthenticationPrincipal CustomUserDetails userDetails) {
         List<BranchUnlock> activeUnlocks = branchUnlockRepository.findAllActiveClientUnlocks(
-                userDetails.getId(), ZonedDateTime.now());
+                userDetails.getId(), ZonedDateTime.now(java.time.ZoneId.of("Asia/Kolkata")));
 
         List<BranchUnlockDto> dtos = activeUnlocks.stream()
                 .map(u -> BranchUnlockDto.builder()
