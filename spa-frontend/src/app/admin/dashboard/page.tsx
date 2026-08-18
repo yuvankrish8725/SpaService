@@ -486,37 +486,31 @@ export default function AdminDashboardPage() {
           </div>
         )}
 
-        {/* ── STAFF ROSTER (BRANCH ALLOCATION & ATTENDANCE) ─── */}
+        {/* ── STAFF ROSTER (SIMPLE BRANCH ASSIGNMENT) ──────── */}
         {activeSection === 'ROSTER' && (
-          <div className="space-y-8">
+          <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <h1 className="text-2xl font-bold italic" style={{ fontFamily: 'var(--font-playfair)', color: 'var(--color-cream)' }}>
-                  Branch Staff Roster
+                  Branch Staff Assignment
                 </h1>
                 <p className="text-xs mt-1" style={{ color: 'var(--color-muted)' }}>
-                  View daily presence status, assign therapists to sanctuaries, and reassign across branches.
+                  Assign available therapists from the Master Gallery to each spa sanctuary and manage branch transfers.
                 </p>
               </div>
 
               <button
-                onClick={() => {
-                  setStaffForm(p => ({
-                    ...p,
-                    branchId: selectedBranchFilter !== 'ALL' ? selectedBranchFilter : (branches[0]?.id || '')
-                  }));
-                  setStaffModalOpen(true);
-                }}
-                className="btn-gold flex items-center gap-2 px-5 py-2.5 text-xs font-bold uppercase tracking-wide cursor-pointer self-start sm:self-auto"
+                onClick={() => setActiveSection('THERAPISTS')}
+                className="btn-gold flex items-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-wide cursor-pointer self-start sm:self-auto"
                 style={{ borderRadius: 10 }}
               >
                 <span style={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Plus className="w-3.5 h-3.5" /> Add Therapist
+                  <Sparkles className="w-3.5 h-3.5" /> Go to Therapist Gallery Studio
                 </span>
               </button>
             </div>
 
-            {/* Branch Filter Pills */}
+            {/* Branch Filter Tabs */}
             <div className="flex flex-wrap gap-2 pt-1 border-b border-white/10 pb-4">
               <button
                 onClick={() => setSelectedBranchFilter('ALL')}
@@ -526,7 +520,7 @@ export default function AdminDashboardPage() {
                   : { background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', color: 'var(--color-parchment)' }
                 }
               >
-                All Branches ({staff.length})
+                All Sanctuaries ({staff.length})
               </button>
               {branches.map(b => {
                 const count = staff.filter(s => s.branchId === b.id).length;
@@ -551,183 +545,130 @@ export default function AdminDashboardPage() {
               })}
             </div>
 
-            {/* Branch Groups */}
+            {/* Branch Cards with Clean Assignment List */}
             {loading ? (
-              <div className="space-y-6">
-                {[1, 2].map(i => <div key={i} className="h-64 rounded-2xl bg-white/5 animate-pulse" />)}
+              <div className="space-y-4">
+                {[1, 2].map(i => <div key={i} className="h-44 rounded-2xl bg-white/5 animate-pulse" />)}
               </div>
             ) : visibleBranches.length === 0 ? (
-              <div className="text-center py-16 rounded-2xl bg-white/5 text-white/50 text-sm">
+              <div className="text-center py-12 rounded-2xl bg-white/5 text-white/50 text-sm">
                 No branches found.
               </div>
             ) : (
-              <div className="space-y-10">
+              <div className="space-y-6">
                 {visibleBranches.map(branch => {
                   const branchStaff = staff.filter(s => s.branchId === branch.id);
+                  const otherStaff = staff.filter(s => s.branchId !== branch.id);
 
                   return (
                     <div
                       key={branch.id}
-                      className="p-6 sm:p-8 rounded-3xl space-y-6"
-                      style={{
-                        background: 'rgba(255,255,255,0.02)',
-                        border: '1px solid rgba(212,175,55,0.15)',
-                      }}
+                      className="glass-card p-6 rounded-2xl space-y-4"
+                      style={{ border: '1px solid rgba(212,175,55,0.15)' }}
                     >
-                      {/* Branch Header Banner */}
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/5">
+                      {/* Branch Header */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/5">
                         <div>
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="badge-gold text-[10px]">SANCTUARY</span>
-                            <span className="text-xs" style={{ color: 'var(--color-muted)' }}>{branch.city}, {branch.state}</span>
+                          <div className="flex items-center gap-2">
+                            <h2 className="text-lg font-bold italic" style={{ fontFamily: 'var(--font-playfair)', color: 'var(--color-cream)' }}>
+                              {branch.name}
+                            </h2>
+                            <span className="badge-gold text-[10px]">{branch.city}</span>
                           </div>
-                          <h2 className="text-xl font-bold italic" style={{ fontFamily: 'var(--font-playfair)', color: 'var(--color-cream)' }}>
-                            {branch.name}
-                          </h2>
-                          <div className="flex items-center gap-4 text-xs mt-1 text-white/50">
-                            <span>⏱ {branch.openTime?.substring(0, 5)} - {branch.closeTime?.substring(0, 5)}</span>
-                            <span>👥 {branchStaff.length} Therapists Assigned</span>
-                          </div>
+                          <p className="text-xs text-white/40 mt-0.5">
+                            {branch.address} · ⏱ {branch.openTime?.substring(0, 5)} - {branch.closeTime?.substring(0, 5)}
+                          </p>
                         </div>
 
-                        <button
-                          onClick={() => {
-                            setStaffForm(p => ({ ...p, branchId: branch.id }));
-                            setStaffModalOpen(true);
-                          }}
-                          className="btn-gold flex items-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-wider cursor-pointer self-start sm:self-auto"
-                          style={{ borderRadius: 10 }}
-                        >
-                          <span style={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <Plus className="w-3.5 h-3.5" /> Add Therapist to this Branch
-                          </span>
-                        </button>
+                        {/* Quick Assign Therapist to this Branch */}
+                        {otherStaff.length > 0 && (
+                          <div className="flex items-center gap-2">
+                            <select
+                              defaultValue=""
+                              onChange={e => {
+                                if (e.target.value) {
+                                  handleReassignBranch(e.target.value, branch.id);
+                                  e.target.value = '';
+                                }
+                              }}
+                              className="text-xs py-2 px-3 rounded-xl cursor-pointer bg-white/5 border border-amber-400/30 text-amber-300 hover:bg-white/10 transition-colors"
+                            >
+                              <option value="" className="bg-neutral-900 text-white/60">+ Assign Therapist to {branch.name}...</option>
+                              {otherStaff.map(os => (
+                                <option key={os.id} value={os.id} className="bg-neutral-900 text-white">
+                                  {os.name} (Currently at: {os.branchName || 'Unassigned'})
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
                       </div>
 
-                      {/* Staff Cards inside this branch */}
+                      {/* Assigned Staff List */}
                       {branchStaff.length === 0 ? (
-                        <div
-                          className="p-8 text-center rounded-2xl border border-dashed border-white/10 space-y-3"
-                          style={{ background: 'rgba(0,0,0,0.2)' }}
-                        >
-                          <Users className="w-8 h-8 mx-auto" style={{ color: 'var(--color-gold)' }} />
-                          <div className="text-sm font-semibold" style={{ color: 'var(--color-parchment)' }}>
-                            No therapists assigned to {branch.name} yet.
-                          </div>
-                          <p className="text-xs text-white/40 max-w-sm mx-auto">
-                            Add a new therapist or reassign an existing staff member from another branch below.
-                          </p>
-                          <button
-                            onClick={() => {
-                              setStaffForm(p => ({ ...p, branchId: branch.id }));
-                              setStaffModalOpen(true);
-                            }}
-                            className="btn-gold inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold uppercase tracking-wider cursor-pointer"
-                            style={{ borderRadius: 8 }}
-                          >
-                            <span style={{ position: 'relative', zIndex: 2 }}>+ Add First Therapist</span>
-                          </button>
+                        <div className="p-4 text-center rounded-xl bg-white/2 border border-dashed border-white/10 text-xs text-white/40">
+                          No therapists currently assigned to {branch.name}. Use the dropdown above to assign a practitioner.
                         </div>
                       ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                          {branchStaff.map(s => {
-                            const photoCount = (s.galleryPhotos?.length || 0) + (s.profilePhotoUrl ? 1 : 0);
+                        <div className="space-y-2">
+                          <div className="text-[11px] font-semibold uppercase tracking-wider text-white/40 px-2 flex justify-between">
+                            <span>Assigned Practitioners ({branchStaff.length})</span>
+                            <span>Sanctuary Transfer</span>
+                          </div>
 
-                            return (
+                          <div className="divide-y divide-white/5 rounded-xl overflow-hidden bg-white/2 border border-white/5">
+                            {branchStaff.map(s => (
                               <div
                                 key={s.id}
-                                className="glass-card p-6 flex flex-col justify-between gap-5"
-                                style={{ borderRadius: 20 }}
+                                className="flex items-center justify-between p-3.5 hover:bg-white/5 transition-colors gap-4"
                               >
-                                <div className="space-y-4">
-                                  {/* Avatar & Presence */}
-                                  <div className="flex items-start gap-4">
-                                    <div className="relative shrink-0">
-                                      <div
-                                        className="w-16 h-16 rounded-full overflow-hidden flex items-center justify-center font-bold text-lg"
-                                        style={{ background: 'rgba(255,255,255,0.08)', border: '1.5px solid rgba(212,175,55,0.3)', color: 'var(--color-gold)' }}
-                                      >
-                                        {s.profilePhotoUrl ? (
-                                          // eslint-disable-next-line @next/next/no-img-element
-                                          <img src={s.profilePhotoUrl} alt={s.name} className="w-full h-full object-cover" />
-                                        ) : (
-                                          s.name[0]
-                                        )}
-                                      </div>
+                                <div className="flex items-center gap-3 min-w-0">
+                                  <div
+                                    className="w-10 h-10 rounded-full overflow-hidden shrink-0 flex items-center justify-center font-bold text-sm"
+                                    style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(212,175,55,0.3)', color: 'var(--color-gold)' }}
+                                  >
+                                    {s.profilePhotoUrl ? (
+                                      // eslint-disable-next-line @next/next/no-img-element
+                                      <img src={s.profilePhotoUrl} alt={s.name} className="w-full h-full object-cover" />
+                                    ) : (
+                                      s.name[0]
+                                    )}
+                                  </div>
+                                  <div className="min-w-0">
+                                    <div className="font-semibold text-sm truncate" style={{ color: 'var(--color-cream)' }}>
+                                      {s.name}
                                     </div>
-
-                                    <div className="flex-1 min-w-0">
-                                      <h3 className="font-bold text-base truncate" style={{ fontFamily: 'var(--font-playfair)', color: 'var(--color-cream)' }}>
-                                        {s.name}
-                                      </h3>
-                                      <div className="text-xs font-medium truncate mt-0.5" style={{ color: 'var(--color-gold-light)' }}>
-                                        {s.specialization || 'Wellness Specialist'}
-                                      </div>
-                                      <div className="mt-2">
-                                        {s.presentToday ? (
-                                          <span className="badge-jade text-[10px] px-2 py-0.5"><span className="presence-dot-present" /> Present</span>
-                                        ) : (
-                                          <span className="badge-rose text-[10px] px-2 py-0.5"><XCircle className="w-3 h-3" /> On Leave</span>
-                                        )}
-                                      </div>
+                                    <div className="text-xs text-amber-300/80 truncate">
+                                      {s.specialization || 'Wellness Specialist'}
                                     </div>
                                   </div>
-
-                                  {/* Bio preview */}
-                                  {s.bio && (
-                                    <p className="text-xs line-clamp-2 leading-relaxed" style={{ color: 'var(--color-muted)' }}>
-                                      {s.bio}
-                                    </p>
-                                  )}
-
-                                  {/* Branch Reassign Control */}
-                                  <div className="space-y-1.5 pt-2 border-t border-white/5">
-                                    <label className="text-[10px] font-bold uppercase tracking-wider text-amber-300/70 flex items-center gap-1">
-                                      <ArrowRightLeft className="w-3 h-3" /> Assigned Sanctuary:
-                                    </label>
-                                    <select
-                                      value={s.branchId}
-                                      onChange={e => handleReassignBranch(s.id, e.target.value)}
-                                      className="w-full text-xs py-2 px-3 rounded-xl cursor-pointer bg-white/5 border border-white/10 text-white/90 hover:border-amber-400/40 transition-colors"
-                                    >
-                                      {branches.map(b => (
-                                        <option key={b.id} value={b.id} className="bg-neutral-900 text-white">
-                                          {b.name} ({b.city})
-                                        </option>
-                                      ))}
-                                    </select>
-                                  </div>
-                                </div>
-
-                                {/* Actions: Manage Gallery & Delete Photo */}
-                                <div className="space-y-2 pt-2 border-t border-white/5">
-                                  <div className="flex gap-2">
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setSelectedStaffForGallery(s);
-                                        setGalleryModalOpen(true);
-                                      }}
-                                      className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold cursor-pointer transition-all bg-amber-400/10 hover:bg-amber-400/20 text-amber-300 border border-amber-400/30"
-                                    >
-                                      <ImageIcon className="w-3.5 h-3.5" />
-                                      <span>Gallery ({photoCount})</span>
-                                    </button>
-
-                                    {s.profilePhotoUrl && (
-                                      <button
-                                        onClick={() => handleDeleteStaffPhoto(s.id)}
-                                        title="Delete profile photo"
-                                        className="w-9 h-9 rounded-xl flex items-center justify-center cursor-pointer transition-colors bg-white/5 hover:bg-rose-500/20 text-rose-300 border border-white/10"
-                                      >
-                                        <Trash2 className="w-3.5 h-3.5" />
-                                      </button>
+                                  <div className="ml-2 hidden sm:block">
+                                    {s.presentToday ? (
+                                      <span className="badge-jade text-[9px] px-2 py-0.5"><span className="presence-dot-present" /> Present</span>
+                                    ) : (
+                                      <span className="badge-rose text-[9px] px-2 py-0.5"><XCircle className="w-2.5 h-2.5" /> On Leave</span>
                                     )}
                                   </div>
                                 </div>
+
+                                {/* Quick Transfer Dropdown */}
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <span className="text-[11px] text-white/40 hidden md:inline">Move to:</span>
+                                  <select
+                                    value={s.branchId}
+                                    onChange={e => handleReassignBranch(s.id, e.target.value)}
+                                    className="text-xs py-1.5 px-2.5 rounded-lg cursor-pointer bg-white/5 border border-white/10 text-white/80 hover:border-amber-400/40 transition-colors"
+                                  >
+                                    {branches.map(b => (
+                                      <option key={b.id} value={b.id} className="bg-neutral-900 text-white">
+                                        {b.name}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
                               </div>
-                            );
-                          })}
+                            ))}
+                          </div>
                         </div>
                       )}
                     </div>
