@@ -4,11 +4,18 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { apiFetch, BranchResponse } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { MapPin, Clock, Key, Lock, Phone, Sparkles, ChevronRight, Search, ShieldCheck } from 'lucide-react';
+import { MapPin, Clock, Key, Lock, Phone, Search } from 'lucide-react';
 import UnlockModal from '@/components/UnlockModal';
 
+const BRANCH_IMAGES = [
+  'https://images.unsplash.com/photo-1544161515-4ab6ce6db874?w=800&auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1600334089648-b0d9d3028eb2?w=800&auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1498842812179-c81beecf902c?w=800&auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1519823551278-64ac92734fb1?w=800&auto=format&fit=crop&q=80',
+];
+
 export default function BranchesPage() {
-  const { user, isBranchUnlocked, getBranchUnlockRemainingTime } = useAuth();
+  const { isBranchUnlocked, getBranchUnlockRemainingTime } = useAuth();
   const [branches, setBranches] = useState<BranchResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchCity, setSearchCity] = useState('');
@@ -21,7 +28,7 @@ export default function BranchesPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const filteredBranches = branches.filter(b => 
+  const filteredBranches = branches.filter(b =>
     b.name.toLowerCase().includes(searchCity.toLowerCase()) ||
     b.city.toLowerCase().includes(searchCity.toLowerCase()) ||
     b.address.toLowerCase().includes(searchCity.toLowerCase())
@@ -30,160 +37,233 @@ export default function BranchesPage() {
   const cities = Array.from(new Set(branches.map(b => b.city)));
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 space-y-12">
-      
-      {/* Header */}
-      <div className="text-center max-w-3xl mx-auto space-y-4">
-        <div className="inline-flex items-center gap-2 bg-amber-500/10 border border-amber-500/30 text-amber-300 px-4 py-1.5 rounded-full text-xs font-semibold uppercase tracking-widest">
-          <MapPin className="w-3.5 h-3.5" />
-          <span>Premier Spa Network</span>
-        </div>
-        <h1 className="font-serif text-3xl sm:text-5xl font-bold text-stone-100">
-          Find Your Sanctuary
-        </h1>
-        <p className="text-sm text-stone-400">
-          Browse verified locations, review operating schedules, and unlock today&apos;s active therapist roster.
-        </p>
+    <div>
+      {/* ── Page Hero ──────────────────────────────────── */}
+      <section
+        className="relative py-24 px-4 sm:px-6 lg:px-8 overflow-hidden"
+        style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}
+      >
+        {/* Background glow */}
+        <div
+          className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-48 pointer-events-none opacity-20"
+          style={{ background: 'radial-gradient(ellipse, rgba(212,175,55,0.4) 0%, transparent 70%)', filter: 'blur(30px)' }}
+        />
 
-        {/* City Filter Pills */}
-        <div className="flex flex-wrap items-center justify-center gap-2 pt-4">
-          <button
-            onClick={() => setSearchCity('')}
-            className={`text-xs px-4 py-2 rounded-full border transition ${
-              searchCity === ''
-                ? 'bg-amber-500 text-stone-950 font-bold border-amber-500'
-                : 'bg-stone-900 border-stone-800 text-stone-400 hover:border-stone-700'
-            }`}
+        <div className="max-w-4xl mx-auto text-center relative z-10">
+          <div className="flex items-center justify-center gap-2 mb-4">
+            <div className="w-8 h-px" style={{ background: 'var(--color-gold)' }} />
+            <span className="text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--color-gold)' }}>
+              Premier Spa Network
+            </span>
+            <div className="w-8 h-px" style={{ background: 'var(--color-gold)' }} />
+          </div>
+          <h1
+            className="text-5xl sm:text-6xl font-bold italic mb-5"
+            style={{ fontFamily: 'var(--font-playfair)', color: 'var(--color-cream)' }}
           >
-            All Cities ({branches.length})
-          </button>
-          {cities.map(city => (
+            Find Your Sanctuary
+          </h1>
+          <p className="text-base max-w-xl mx-auto mb-10" style={{ color: 'var(--color-parchment)', fontWeight: 300, lineHeight: 1.7 }}>
+            Browse verified locations, review schedules, and unlock today&apos;s active therapist roster.
+          </p>
+
+          {/* City filter pills */}
+          <div className="flex flex-wrap items-center justify-center gap-2 mb-6">
             <button
-              key={city}
-              onClick={() => setSearchCity(city)}
-              className={`text-xs px-4 py-2 rounded-full border transition ${
-                searchCity === city
-                  ? 'bg-amber-500 text-stone-950 font-bold border-amber-500'
-                  : 'bg-stone-900 border-stone-800 text-stone-400 hover:border-stone-700'
-              }`}
+              onClick={() => setSearchCity('')}
+              className="px-5 py-2 rounded-full text-sm font-semibold cursor-pointer transition-all duration-200"
+              style={searchCity === ''
+                ? { background: 'var(--color-gold)', color: '#0A0906', boxShadow: '0 4px 20px -4px rgba(212,175,55,0.5)' }
+                : { background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', color: 'var(--color-parchment)' }
+              }
             >
-              📍 {city}
+              All ({branches.length})
             </button>
-          ))}
+            {cities.map(city => (
+              <button
+                key={city}
+                onClick={() => setSearchCity(city)}
+                className="flex items-center gap-1.5 px-5 py-2 rounded-full text-sm font-semibold cursor-pointer transition-all duration-200"
+                style={searchCity === city
+                  ? { background: 'var(--color-gold)', color: '#0A0906', boxShadow: '0 4px 20px -4px rgba(212,175,55,0.5)' }
+                  : { background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', color: 'var(--color-parchment)' }
+                }
+              >
+                <MapPin className="w-3.5 h-3.5" /> {city}
+              </button>
+            ))}
+          </div>
+
+          {/* Search bar */}
+          <div className="relative max-w-md mx-auto">
+            <Search className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2" style={{ color: 'var(--color-muted)' }} />
+            <input
+              type="text"
+              placeholder="Search by name, city, or address…"
+              value={searchCity}
+              onChange={e => setSearchCity(e.target.value)}
+              className="input-glass pl-11 text-sm"
+            />
+          </div>
         </div>
-      </div>
+      </section>
 
-      {/* Branch Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        {filteredBranches.map(branch => {
-          const unlocked = isBranchUnlocked(branch.id);
-          const remainingTime = getBranchUnlockRemainingTime(branch.id);
+      {/* ── Branch Cards Grid ──────────────────────────── */}
+      <section className="py-20 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto">
 
-          return (
-            <div
-              key={branch.id}
-              className="bg-stone-900/60 border border-stone-800 rounded-2xl p-6 flex flex-col justify-between hover:border-amber-500/40 transition group hover:shadow-xl hover:shadow-amber-500/5 relative"
-            >
-              <div className="space-y-4">
-                
-                {/* Location Chip + Status */}
-                <div className="flex items-center justify-between">
-                  <div className="inline-flex items-center gap-1.5 bg-amber-950/50 border border-amber-800/40 text-amber-300 px-3 py-1 rounded-full text-xs font-semibold">
-                    <MapPin className="w-3.5 h-3.5 text-amber-400" />
-                    <span>{branch.city}, {branch.state}</span>
-                  </div>
-
-                  {unlocked ? (
-                    <span className="text-[11px] text-emerald-400 font-semibold bg-emerald-950/60 border border-emerald-800/50 px-2.5 py-1 rounded-full flex items-center gap-1">
-                      <Key className="w-3 h-3" /> Unlocked ({remainingTime || 'Today'})
-                    </span>
-                  ) : (
-                    <span className="text-[11px] text-stone-400 font-medium bg-stone-950 border border-stone-800 px-2.5 py-1 rounded-full flex items-center gap-1">
-                      <Lock className="w-3 h-3 text-amber-400" /> ₹99 / Day
-                    </span>
-                  )}
-                </div>
-
-                <div>
-                  <h3 className="font-serif text-xl font-bold text-stone-100 group-hover:text-amber-200 transition">
-                    {branch.name}
-                  </h3>
-                  <p className="text-xs text-stone-400 mt-1.5 leading-relaxed">
-                    {branch.address}
-                  </p>
-                  <p className="text-[11px] text-stone-500 mt-0.5">
-                    PIN: {branch.pincode}
-                  </p>
-                </div>
-
-                {/* Info Card */}
-                <div className="bg-stone-950/60 border border-stone-800/80 rounded-xl p-3.5 space-y-2 text-xs text-stone-300">
-                  <div className="flex items-center justify-between">
-                    <span className="text-stone-400 flex items-center gap-1.5">
-                      <Clock className="w-3.5 h-3.5 text-amber-400" /> Hours:
-                    </span>
-                    <span className="font-medium text-stone-200">
-                      {branch.openTime ? branch.openTime.substring(0, 5) : '09:00'} - {branch.closeTime ? branch.closeTime.substring(0, 5) : '21:00'} IST
-                    </span>
-                  </div>
-                  {branch.phone && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-stone-400 flex items-center gap-1.5">
-                        <Phone className="w-3.5 h-3.5 text-amber-400" /> Desk:
-                      </span>
-                      <span className="text-stone-200">{branch.phone}</span>
-                    </div>
-                  )}
-                  <div className="flex items-center justify-between pt-1 border-t border-stone-800">
-                    <span className="text-stone-400">Therapists:</span>
-                    <span className="font-bold text-amber-300">{branch.staffCount} Assigned</span>
+          {loading ? (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {[1, 2, 3].map(i => (
+                <div key={i} className="rounded-2xl overflow-hidden" style={{ border: '1px solid var(--glass-border)' }}>
+                  <div className="h-56 bg-white/5 animate-pulse" />
+                  <div className="p-6 space-y-3">
+                    <div className="h-4 bg-white/5 rounded animate-pulse w-3/4" />
+                    <div className="h-3 bg-white/5 rounded animate-pulse w-1/2" />
+                    <div className="h-3 bg-white/5 rounded animate-pulse w-2/3" />
                   </div>
                 </div>
-
-              </div>
-
-              {/* Action Buttons */}
-              <div className="mt-6 pt-4 border-t border-stone-800/80 flex items-center gap-3">
-                <Link
-                  href={`/branches/${branch.id}`}
-                  className={`flex-1 text-center font-bold py-2.5 rounded-xl text-xs transition ${
-                    unlocked
-                      ? 'bg-amber-500 hover:bg-amber-600 text-stone-950 shadow-md shadow-amber-500/20'
-                      : 'bg-stone-800 hover:bg-stone-700 text-stone-200'
-                  }`}
-                >
-                  {unlocked ? 'View Today\'s Therapists' : 'View Branch & Unlock'}
-                </Link>
-
-                {!unlocked && (
-                  <button
-                    onClick={() => setSelectedBranchToUnlock(branch)}
-                    title="Unlock with ₹99"
-                    className="p-2.5 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/40 text-amber-300 rounded-xl transition cursor-pointer"
-                  >
-                    <Lock className="w-4 h-4" />
-                  </button>
-                )}
-
-                {branch.mapsUrl && (
-                  <a
-                    href={branch.mapsUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    title="View on Google Maps"
-                    className="p-2.5 bg-stone-950 border border-stone-800 hover:border-amber-500/50 text-amber-400 rounded-xl transition"
-                  >
-                    <MapPin className="w-4 h-4" />
-                  </a>
-                )}
-              </div>
-
+              ))}
             </div>
-          );
-        })}
-      </div>
+          ) : filteredBranches.length === 0 ? (
+            <div className="text-center py-20">
+              <MapPin className="w-10 h-10 mx-auto mb-4" style={{ color: 'var(--color-muted)' }} />
+              <p className="text-lg font-semibold" style={{ color: 'var(--color-parchment)' }}>No branches found</p>
+              <p className="text-sm mt-1" style={{ color: 'var(--color-muted)' }}>Try a different city or clear your search.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredBranches.map((branch, idx) => {
+                const unlocked = isBranchUnlocked(branch.id);
+                const remaining = getBranchUnlockRemainingTime(branch.id);
 
-      {/* Paywall Unlock Modal */}
+                return (
+                  <div key={branch.id} className="glass-card overflow-hidden group" style={{ borderRadius: 20 }}>
+
+                    {/* Image header */}
+                    <div className="relative h-56 overflow-hidden">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={BRANCH_IMAGES[idx % BRANCH_IMAGES.length]}
+                        alt={branch.name}
+                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                      />
+                      {/* Gradient on image */}
+                      <div className="absolute inset-0" style={{ background: 'linear-gradient(to top, rgba(10,9,6,0.8) 0%, transparent 60%)' }} />
+
+                      {/* City badge */}
+                      <div
+                        className="absolute top-4 left-4 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold"
+                        style={{ background: 'rgba(10,9,6,0.85)', backdropFilter: 'blur(8px)', border: '1px solid rgba(212,175,55,0.3)', color: 'var(--color-gold-light)' }}
+                      >
+                        <MapPin className="w-3 h-3" /> {branch.city}, {branch.state}
+                      </div>
+
+                      {/* Lock/unlock badge */}
+                      {unlocked ? (
+                        <div className="absolute top-4 right-4 badge-jade">
+                          <Key className="w-3 h-3" /> Unlocked {remaining && `· ${remaining}`}
+                        </div>
+                      ) : (
+                        <div
+                          className="absolute top-4 right-4 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold"
+                          style={{ background: 'rgba(10,9,6,0.85)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.1)', color: 'var(--color-parchment)' }}
+                        >
+                          <Lock className="w-3 h-3" /> ₹99 / Day
+                        </div>
+                      )}
+
+                      {/* Branch name on image */}
+                      <div className="absolute bottom-4 left-4 right-4">
+                        <h3
+                          className="text-xl font-bold italic transition-colors duration-200"
+                          style={{ fontFamily: 'var(--font-playfair)', color: 'var(--color-cream)' }}
+                        >
+                          {branch.name}
+                        </h3>
+                      </div>
+                    </div>
+
+                    {/* Card body */}
+                    <div className="p-6 space-y-4">
+                      <p className="text-xs leading-relaxed" style={{ color: 'var(--color-muted)' }}>
+                        {branch.address}, {branch.pincode}
+                      </p>
+
+                      {/* Info row */}
+                      <div
+                        className="grid grid-cols-2 gap-3 p-3 rounded-xl text-xs"
+                        style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}
+                      >
+                        <div className="flex items-center gap-2" style={{ color: 'var(--color-muted)' }}>
+                          <Clock className="w-3.5 h-3.5" style={{ color: 'var(--color-gold)' }} />
+                          <span>{branch.openTime?.substring(0, 5) || '09:00'} – {branch.closeTime?.substring(0, 5) || '21:00'}</span>
+                        </div>
+                        {branch.phone && (
+                          <div className="flex items-center gap-2" style={{ color: 'var(--color-muted)' }}>
+                            <Phone className="w-3.5 h-3.5" style={{ color: 'var(--color-gold)' }} />
+                            <span className="truncate">{branch.phone}</span>
+                          </div>
+                        )}
+                        <div className="col-span-2 flex items-center justify-between pt-1" style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                          <span style={{ color: 'var(--color-muted)' }}>Therapists</span>
+                          <span className="font-bold" style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-gold-light)' }}>
+                            {branch.staffCount} Assigned
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex gap-2">
+                        <Link
+                          href={`/branches/${branch.id}`}
+                          className="flex-1 py-3 rounded-xl text-xs font-bold text-center uppercase tracking-wide transition-all duration-200"
+                          style={unlocked
+                            ? { background: 'linear-gradient(135deg, #D4AF37, #A08828)', color: '#0A0906' }
+                            : { background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', color: 'var(--color-parchment)' }
+                          }
+                        >
+                          {unlocked ? 'View Today\'s Roster' : 'View Branch'}
+                        </Link>
+
+                        {!unlocked && (
+                          <button
+                            onClick={() => setSelectedBranchToUnlock(branch)}
+                            title="Unlock for ₹99"
+                            className="flex items-center justify-center w-11 h-11 rounded-xl cursor-pointer transition-all duration-200 shrink-0"
+                            style={{ background: 'rgba(212,175,55,0.08)', border: '1px solid rgba(212,175,55,0.25)', color: 'var(--color-gold)' }}
+                            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(212,175,55,0.15)'; }}
+                            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(212,175,55,0.08)'; }}
+                          >
+                            <Lock className="w-4 h-4" />
+                          </button>
+                        )}
+
+                        {branch.mapsUrl && (
+                          <a
+                            href={branch.mapsUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title="Open in Google Maps"
+                            className="flex items-center justify-center w-11 h-11 rounded-xl transition-all duration-200 shrink-0"
+                            style={{ background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', color: 'var(--color-gold)' }}
+                            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(212,175,55,0.4)'; }}
+                            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--glass-border)'; }}
+                          >
+                            <MapPin className="w-4 h-4" />
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* Unlock modal */}
       {selectedBranchToUnlock && (
         <UnlockModal
           isOpen={!!selectedBranchToUnlock}
@@ -191,12 +271,9 @@ export default function BranchesPage() {
           branchId={selectedBranchToUnlock.id}
           branchName={selectedBranchToUnlock.name}
           branchCity={selectedBranchToUnlock.city}
-          onSuccess={() => {
-            window.location.href = `/branches/${selectedBranchToUnlock.id}`;
-          }}
+          onSuccess={() => { window.location.href = `/branches/${selectedBranchToUnlock.id}`; }}
         />
       )}
-
     </div>
   );
 }

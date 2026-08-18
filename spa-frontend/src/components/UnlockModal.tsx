@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { apiFetch, AuthResponse, PaymentOrderResponse } from '@/lib/api';
-import { Lock, Sparkles, CheckCircle2, ShieldCheck, Clock, MapPin, X, CreditCard, ArrowRight, Loader2 } from 'lucide-react';
+import { Lock, Key, CheckCircle2, ShieldCheck, Clock, MapPin, X, CreditCard, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 
 interface UnlockModalProps {
@@ -26,14 +26,13 @@ export default function UnlockModal({
   const { user, updateAuth } = useAuth();
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState<'DETAILS' | 'PAYING' | 'SUCCESS'>('DETAILS');
-  const [paymentOrder, setPaymentOrder] = useState<PaymentOrderResponse | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
   const handleInitiateUnlock = async () => {
     if (!user) {
-      window.location.href = `/auth/login?redirect=/branches/${branchId}`;
+      window.location.href = `/auth/login`;
       return;
     }
 
@@ -41,18 +40,16 @@ export default function UnlockModal({
     setErrorMsg(null);
 
     try {
-      // 1. Call Backend to create unlock payment order
       const order = await apiFetch<PaymentOrderResponse>('/payments/branch-unlock/initiate', {
         method: 'POST',
         body: JSON.stringify({ branchId }),
       });
-      setPaymentOrder(order);
+
       setStep('PAYING');
 
-      // 2. Simulate Razorpay payment modal completion (or live Razorpay if SDK is embedded)
+      // Simulate Razorpay flow
       setTimeout(async () => {
         try {
-          // Call backend verify endpoint
           const authRes = await apiFetch<AuthResponse>('/payments/branch-unlock/verify', {
             method: 'POST',
             body: JSON.stringify({
@@ -62,151 +59,212 @@ export default function UnlockModal({
               razorpaySignature: 'sig_' + Math.random().toString(36).substring(2, 16),
             }),
           });
-
-          // Update client JWT & unlock state
           updateAuth(authRes);
           setStep('SUCCESS');
           setLoading(false);
-
-          setTimeout(() => {
-            onSuccess();
-            onClose();
-          }, 1800);
-        } catch (verifyErr: any) {
-          setErrorMsg(verifyErr.message || 'Payment verification failed');
+          setTimeout(() => { onSuccess(); onClose(); }, 2000);
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : 'Payment verification failed';
+          setErrorMsg(msg);
           setStep('DETAILS');
           setLoading(false);
         }
-      }, 1500);
-
-    } catch (err: any) {
-      setErrorMsg(err.message || 'Failed to initiate unlock');
+      }, 1600);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to initiate payment';
+      setErrorMsg(msg);
       setLoading(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-950/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative w-full max-w-lg bg-stone-900 border border-stone-800 rounded-2xl p-6 md:p-8 shadow-2xl text-stone-100 overflow-hidden">
-        
-        {/* Decorative ambient glow */}
-        <div className="absolute -top-24 -right-24 w-48 h-48 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)' }}
+    >
+      <div
+        className="modal-enter relative w-full max-w-md overflow-hidden"
+        style={{
+          background: 'rgba(14,12,8,0.97)',
+          border: '1px solid rgba(212,175,55,0.2)',
+          borderRadius: 24,
+          boxShadow: '0 32px 80px -16px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.04)',
+        }}
+      >
+        {/* Gold ambient glow */}
+        <div
+          className="absolute -top-20 left-1/2 -translate-x-1/2 w-80 h-40 pointer-events-none"
+          style={{ background: 'radial-gradient(ellipse, rgba(212,175,55,0.12) 0%, transparent 70%)', filter: 'blur(20px)' }}
+        />
 
         {/* Close button */}
         <button
           onClick={onClose}
           disabled={loading}
-          className="absolute top-4 right-4 p-2 text-stone-400 hover:text-stone-200 hover:bg-stone-800 rounded-full transition"
+          className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full cursor-pointer transition-all duration-200 z-10"
+          style={{ background: 'rgba(255,255,255,0.06)', color: 'var(--color-muted)' }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.1)'; (e.currentTarget as HTMLElement).style.color = 'var(--color-cream)'; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.06)'; (e.currentTarget as HTMLElement).style.color = 'var(--color-muted)'; }}
+          aria-label="Close"
         >
-          <X className="w-5 h-5" />
+          <X className="w-4 h-4" />
         </button>
 
-        {step === 'DETAILS' && (
-          <div className="space-y-6">
-            
-            {/* Header */}
-            <div className="text-center space-y-2">
-              <div className="w-14 h-14 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-center justify-center mx-auto text-amber-400 shadow-inner">
-                <Lock className="w-7 h-7" />
-              </div>
-              <h3 className="font-serif text-2xl font-bold text-amber-100">
-                Unlock Daily Therapist Availability
-              </h3>
-              <div className="inline-flex items-center gap-1.5 text-xs text-amber-300 bg-amber-950/60 border border-amber-800/40 px-3 py-1 rounded-full">
-                <MapPin className="w-3.5 h-3.5" />
-                <span>{branchName} {branchCity ? `(${branchCity})` : ''}</span>
-              </div>
-            </div>
+        <div className="relative p-8">
 
-            {/* Explanatory benefit cards */}
-            <div className="bg-stone-950/60 border border-stone-800/80 rounded-xl p-4 space-y-3 text-xs text-stone-300">
-              <div className="flex items-start gap-3">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                <span>View verified therapist profiles, photos, and today&apos;s live presence check-in status.</span>
-              </div>
-              <div className="flex items-start gap-3">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                <span>Enable instant appointment bookings with your preferred certified therapist.</span>
-              </div>
-              <div className="flex items-start gap-3">
-                <Clock className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                <span>Valid for <strong className="text-amber-200">1 Day</strong> (access expires at midnight 11:59 PM IST tonight).</span>
-              </div>
-            </div>
-
-            {/* Price Breakdown */}
-            <div className="bg-stone-950/80 border border-stone-800 rounded-xl p-4 space-y-2">
-              <div className="flex justify-between text-xs text-stone-400">
-                <span>1-Day Branch Unlock Access</span>
-                <span>₹99.00</span>
-              </div>
-              <div className="flex justify-between text-xs text-stone-400">
-                <span>Online Processing & Service Tax (2%)</span>
-                <span>₹1.98</span>
-              </div>
-              <div className="pt-2 border-t border-stone-800 flex justify-between items-baseline">
-                <span className="text-sm font-semibold text-stone-200">Total Amount</span>
-                <div className="text-right">
-                  <span className="font-serif text-2xl font-bold text-amber-300">₹100.98</span>
-                  <span className="block text-[10px] text-stone-400">One-time payment for today</span>
+          {/* ── STEP: DETAILS ──────────────────────────── */}
+          {step === 'DETAILS' && (
+            <div className="space-y-6">
+              {/* Header */}
+              <div className="text-center space-y-3">
+                <div
+                  className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto"
+                  style={{ background: 'rgba(212,175,55,0.1)', border: '1px solid rgba(212,175,55,0.25)' }}
+                >
+                  <Key className="w-7 h-7" style={{ color: 'var(--color-gold)' }} />
+                </div>
+                <h3
+                  className="text-2xl font-bold italic"
+                  style={{ fontFamily: 'var(--font-playfair)', color: 'var(--color-cream)' }}
+                >
+                  Unlock Today&apos;s Roster
+                </h3>
+                <div
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium"
+                  style={{ background: 'rgba(212,175,55,0.08)', border: '1px solid rgba(212,175,55,0.2)', color: 'var(--color-gold-light)' }}
+                >
+                  <MapPin className="w-3 h-3" />
+                  {branchName}{branchCity ? ` · ${branchCity}` : ''}
                 </div>
               </div>
-            </div>
 
-            {errorMsg && (
-              <div className="p-3 rounded-lg bg-rose-950/50 border border-rose-800 text-rose-300 text-xs text-center">
-                {errorMsg}
+              {/* What you get */}
+              <div
+                className="space-y-3 p-4 rounded-xl"
+                style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}
+              >
+                {[
+                  { icon: <CheckCircle2 className="w-4 h-4" style={{ color: 'var(--color-jade)' }} />, text: "View all certified therapists confirmed present today" },
+                  { icon: <CheckCircle2 className="w-4 h-4" style={{ color: 'var(--color-jade)' }} />, text: "See therapist photos, specializations, and live presence badges" },
+                  { icon: <Clock className="w-4 h-4" style={{ color: 'var(--color-gold)' }} />, text: "1-Day access · Valid until 11:59 PM IST tonight" },
+                ].map((item, i) => (
+                  <div key={i} className="flex items-start gap-3 text-sm" style={{ color: 'var(--color-parchment)' }}>
+                    <span className="shrink-0 mt-0.5">{item.icon}</span>
+                    <span>{item.text}</span>
+                  </div>
+                ))}
               </div>
-            )}
 
-            {/* CTA Button */}
-            {!user ? (
-              <Link
-                href={`/auth/login?redirect=/branches/${branchId}`}
-                className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-stone-950 font-bold py-3.5 rounded-xl shadow-lg shadow-amber-500/20 text-sm transition"
+              {/* Receipt-style price breakdown */}
+              <div
+                className="rounded-xl overflow-hidden"
+                style={{ border: '1px solid rgba(255,255,255,0.08)' }}
               >
-                <span>Sign in to Unlock (₹100.98)</span>
-                <ArrowRight className="w-4 h-4" />
-              </Link>
-            ) : (
-              <button
-                onClick={handleInitiateUnlock}
-                disabled={loading}
-                className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-stone-950 font-bold py-3.5 rounded-xl shadow-lg shadow-amber-500/20 text-sm transition disabled:opacity-50 cursor-pointer"
+                <div
+                  className="px-5 py-3 flex justify-between text-sm"
+                  style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}
+                >
+                  <span style={{ color: 'var(--color-muted)' }}>1-Day Branch Unlock</span>
+                  <span style={{ color: 'var(--color-parchment)', fontFamily: 'var(--font-mono)' }}>₹99.00</span>
+                </div>
+                <div
+                  className="px-5 py-3 flex justify-between text-sm"
+                  style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}
+                >
+                  <span style={{ color: 'var(--color-muted)' }}>Online Processing Tax (2%)</span>
+                  <span style={{ color: 'var(--color-parchment)', fontFamily: 'var(--font-mono)' }}>₹1.98</span>
+                </div>
+                <div className="px-5 py-4 flex justify-between items-center" style={{ background: 'rgba(212,175,55,0.05)' }}>
+                  <span className="font-bold uppercase tracking-wider text-xs" style={{ color: 'var(--color-cream)' }}>Total Due Today</span>
+                  <span className="text-2xl font-bold" style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-gold-light)' }}>₹100.98</span>
+                </div>
+              </div>
+
+              {/* Error */}
+              {errorMsg && (
+                <div
+                  className="p-3.5 rounded-xl text-sm text-center"
+                  style={{ background: 'rgba(251,113,133,0.08)', border: '1px solid rgba(251,113,133,0.2)', color: '#fb7185' }}
+                >
+                  {errorMsg}
+                </div>
+              )}
+
+              {/* CTA */}
+              {!user ? (
+                <Link
+                  href={`/auth/login`}
+                  className="btn-gold w-full flex items-center justify-center gap-2 py-4 text-sm font-bold uppercase tracking-wider"
+                  style={{ borderRadius: 12 }}
+                >
+                  <span style={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Lock className="w-4 h-4" /> Sign In to Unlock
+                  </span>
+                </Link>
+              ) : (
+                <button
+                  onClick={handleInitiateUnlock}
+                  disabled={loading}
+                  className="btn-gold w-full py-4 text-sm font-bold uppercase tracking-wider cursor-pointer disabled:opacity-50"
+                  style={{ borderRadius: 12 }}
+                >
+                  <span style={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                    {loading ? (
+                      <><Loader2 className="w-4 h-4 spinner" /> Processing…</>
+                    ) : (
+                      <><CreditCard className="w-4 h-4" /> Pay ₹100.98 &amp; Unlock Now</>
+                    )}
+                  </span>
+                </button>
+              )}
+
+              <div className="flex items-center justify-center gap-2 text-xs" style={{ color: 'var(--color-muted)' }}>
+                <ShieldCheck className="w-3.5 h-3.5" style={{ color: 'var(--color-jade)' }} />
+                100% Secure Razorpay Payment Gateway
+              </div>
+            </div>
+          )}
+
+          {/* ── STEP: PAYING ──────────────────────────── */}
+          {step === 'PAYING' && (
+            <div className="py-14 text-center space-y-5">
+              <div
+                className="w-16 h-16 rounded-full mx-auto"
+                style={{ border: '2px solid rgba(212,175,55,0.2)', borderTop: '2px solid var(--color-gold)', animation: 'spin 0.8s linear infinite' }}
+              />
+              <h4
+                className="text-xl font-bold italic"
+                style={{ fontFamily: 'var(--font-playfair)', color: 'var(--color-gold-light)' }}
               >
-                <CreditCard className="w-4 h-4" />
-                <span>Pay ₹100.98 & Unlock Now</span>
-              </button>
-            )}
-
-            <div className="flex items-center justify-center gap-2 text-[11px] text-stone-500">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-              <span>100% Secure Razorpay Payment Gateway</span>
+                Processing Payment…
+              </h4>
+              <p className="text-sm" style={{ color: 'var(--color-muted)' }}>
+                Verifying ₹100.98 via Razorpay for {branchName}
+              </p>
             </div>
+          )}
 
-          </div>
-        )}
-
-        {step === 'PAYING' && (
-          <div className="py-12 text-center space-y-4">
-            <div className="w-16 h-16 border-4 border-amber-500/20 border-t-amber-500 rounded-full animate-spin mx-auto" />
-            <h4 className="font-serif text-xl font-bold text-amber-200">Processing Razorpay Payment...</h4>
-            <p className="text-xs text-stone-400">Verifying transaction of ₹100.98 for {branchName}...</p>
-          </div>
-        )}
-
-        {step === 'SUCCESS' && (
-          <div className="py-10 text-center space-y-4 animate-in zoom-in-95 duration-300">
-            <div className="w-16 h-16 bg-emerald-500/20 border border-emerald-500/50 rounded-full flex items-center justify-center mx-auto text-emerald-400 shadow-lg shadow-emerald-500/20">
-              <CheckCircle2 className="w-9 h-9" />
+          {/* ── STEP: SUCCESS ──────────────────────────── */}
+          {step === 'SUCCESS' && (
+            <div className="py-14 text-center space-y-5">
+              <div
+                className="w-16 h-16 rounded-full flex items-center justify-center mx-auto"
+                style={{ background: 'rgba(52,211,153,0.12)', border: '1px solid rgba(52,211,153,0.3)' }}
+              >
+                <CheckCircle2 className="w-8 h-8" style={{ color: 'var(--color-jade)' }} />
+              </div>
+              <h4
+                className="text-2xl font-bold italic"
+                style={{ fontFamily: 'var(--font-playfair)', color: 'var(--color-cream)' }}
+              >
+                Branch Unlocked! 🎉
+              </h4>
+              <p className="text-sm" style={{ color: 'var(--color-parchment)' }}>
+                You now have full access to today&apos;s active therapists at <strong style={{ color: 'var(--color-gold-light)' }}>{branchName}</strong> until 11:59 PM IST.
+              </p>
             </div>
-            <h4 className="font-serif text-2xl font-bold text-emerald-200">Branch Unlocked!</h4>
-            <p className="text-xs text-stone-300">
-              You now have full access to today&apos;s active therapists at <strong className="text-amber-200">{branchName}</strong> until midnight.
-            </p>
-          </div>
-        )}
-
+          )}
+        </div>
       </div>
     </div>
   );

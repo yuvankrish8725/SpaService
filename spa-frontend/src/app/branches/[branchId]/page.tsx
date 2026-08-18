@@ -1,14 +1,45 @@
 'use client';
 
 import React, { useState, useEffect, use } from 'react';
+import Link from 'next/link';
 import { apiFetch, BranchResponse, SpaServiceResponse, StaffCardResponse } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { MapPin, Clock, Phone, Sparkles, Lock, Key, CheckCircle2, XCircle, AlertCircle, ShieldCheck, ArrowRight, User, Calendar, CreditCard } from 'lucide-react';
+import { MapPin, Clock, Phone, Lock, Key, XCircle, CheckCircle2, ArrowRight, ChevronLeft, Calendar } from 'lucide-react';
 import UnlockModal from '@/components/UnlockModal';
 import BookingModal from '@/components/BookingModal';
 
 interface PageProps {
   params: Promise<{ branchId: string }>;
+}
+
+/* ── Blurred staff silhouette card ──────────────────────── */
+function LockedStaffCard() {
+  return (
+    <div
+      className="rounded-2xl p-6 flex flex-col gap-4"
+      style={{
+        background: 'var(--glass-bg)',
+        border: '1px solid var(--glass-border)',
+        filter: 'blur(4px)',
+        userSelect: 'none',
+        pointerEvents: 'none',
+        opacity: 0.6,
+      }}
+    >
+      <div className="flex items-center gap-4">
+        <div className="w-16 h-16 rounded-full" style={{ background: 'rgba(255,255,255,0.08)' }} />
+        <div className="flex-1 space-y-2">
+          <div className="h-4 rounded" style={{ background: 'rgba(255,255,255,0.1)', width: '70%' }} />
+          <div className="h-3 rounded" style={{ background: 'rgba(255,255,255,0.06)', width: '50%' }} />
+        </div>
+      </div>
+      <div className="flex gap-2">
+        <div className="h-6 rounded-full" style={{ background: 'rgba(255,255,255,0.07)', width: 80 }} />
+        <div className="h-6 rounded-full" style={{ background: 'rgba(255,255,255,0.07)', width: 100 }} />
+      </div>
+      <div className="h-10 rounded-xl" style={{ background: 'rgba(255,255,255,0.05)' }} />
+    </div>
+  );
 }
 
 export default function BranchDetailPage({ params }: PageProps) {
@@ -27,393 +58,485 @@ export default function BranchDetailPage({ params }: PageProps) {
   const [bookingModalOpen, setBookingModalOpen] = useState(false);
   const [selectedStaffForBooking, setSelectedStaffForBooking] = useState<StaffCardResponse | null>(null);
   const [selectedServiceForBooking, setSelectedServiceForBooking] = useState<SpaServiceResponse | null>(null);
+  const [countdown, setCountdown] = useState('');
 
   const unlocked = isBranchUnlocked(branchId);
   const remainingTime = getBranchUnlockRemainingTime(branchId);
 
-  const loadBranchData = () => {
-    setLoading(true);
-    apiFetch<BranchResponse>(`/branches/${branchId}`)
-      .then(b => setBranch(b))
-      .catch(console.error);
-
-    apiFetch<SpaServiceResponse[]>(`/branches/${branchId}/services`)
-      .then(s => setServices(s))
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  };
-
-  const loadStaffData = () => {
-    if (unlocked) {
-      setStaffLoading(true);
-      apiFetch<StaffCardResponse[]>(`/branches/${branchId}/staff`)
-        .then(st => setStaff(st))
-        .catch(console.error)
-        .finally(() => setStaffLoading(false));
-    }
-  };
+  // Live countdown to 23:59:59 IST
+  useEffect(() => {
+    const tick = () => {
+      const now = new Date();
+      const endIST = new Date();
+      endIST.setHours(23, 59, 59, 0);
+      const diff = endIST.getTime() - now.getTime();
+      if (diff <= 0) { setCountdown('Expires soon'); return; }
+      const h = Math.floor(diff / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      const s = Math.floor((diff % 60000) / 1000);
+      setCountdown(`${h}h ${m}m ${s}s remaining`);
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, []);
 
   useEffect(() => {
-    loadBranchData();
+    setLoading(true);
+    Promise.all([
+      apiFetch<BranchResponse>(`/branches/${branchId}`).catch(() => null),
+      apiFetch<SpaServiceResponse[]>(`/branches/${branchId}/services`).catch(() => []),
+    ]).then(([b, s]) => {
+      if (b) setBranch(b);
+      setServices(s);
+    }).finally(() => setLoading(false));
   }, [branchId]);
 
   useEffect(() => {
-    loadStaffData();
-  }, [branchId, unlocked]);
+    if (!unlocked) return;
+    setStaffLoading(true);
+    apiFetch<StaffCardResponse[]>(`/branches/${branchId}/staff`)
+      .then(st => setStaff(st))
+      .catch(console.error)
+      .finally(() => setStaffLoading(false));
+  }, [unlocked, branchId]);
 
-  if (loading || !branch) {
+  if (loading) {
     return (
-      <div className="max-w-7xl mx-auto px-4 py-24 text-center">
-        <div className="w-12 h-12 border-4 border-amber-500/20 border-t-amber-500 rounded-full animate-spin mx-auto" />
-        <p className="text-xs text-stone-400 mt-4">Loading branch sanctuary...</p>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 rounded-full" style={{ border: '2px solid rgba(212,175,55,0.3)', borderTop: '2px solid var(--color-gold)', animation: 'spin 0.8s linear infinite' }} />
+          <p className="text-sm" style={{ color: 'var(--color-muted)' }}>Loading branch details…</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!branch) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4">
+        <p className="text-xl font-semibold" style={{ color: 'var(--color-cream)' }}>Branch not found</p>
+        <Link href="/branches" className="text-sm" style={{ color: 'var(--color-gold)' }}>← Back to Branches</Link>
       </div>
     );
   }
 
   return (
-    <div className="space-y-16 pb-24">
-      
-      {/* 1. BRANCH HERO HEADER */}
-      <section className="bg-stone-900/80 border-b border-stone-800 py-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div className="space-y-3">
-              <div className="inline-flex items-center gap-2 bg-amber-950/60 border border-amber-800/40 text-amber-300 px-3.5 py-1 rounded-full text-xs font-semibold">
-                <MapPin className="w-3.5 h-3.5 text-amber-400" />
-                <span>{branch.city}, {branch.state} — Pincode: {branch.pincode}</span>
+    <div className="min-h-screen pb-20">
+
+      {/* ── Branch Hero Banner ──────────────────────────── */}
+      <section
+        className="relative py-16 px-4 sm:px-6 lg:px-8 overflow-hidden"
+        style={{ background: 'linear-gradient(to bottom, rgba(212,175,55,0.05), transparent)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}
+      >
+        <div className="max-w-7xl mx-auto">
+          {/* Back link */}
+          <Link
+            href="/branches"
+            className="inline-flex items-center gap-2 text-sm mb-8 transition-colors duration-200"
+            style={{ color: 'var(--color-muted)' }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--color-gold-light)'; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--color-muted)'; }}
+          >
+            <ChevronLeft className="w-4 h-4" /> All Branches
+          </Link>
+
+          <div className="flex flex-col lg:flex-row gap-8 items-start">
+            {/* Branch info */}
+            <div className="flex-1">
+              <div
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold uppercase tracking-widest mb-5"
+                style={{ background: 'rgba(212,175,55,0.08)', border: '1px solid rgba(212,175,55,0.25)', color: 'var(--color-gold-light)' }}
+              >
+                <MapPin className="w-3.5 h-3.5" /> {branch.city}, {branch.state}
               </div>
-              <h1 className="font-serif text-3xl sm:text-5xl font-bold text-stone-100">
+
+              <h1
+                className="text-4xl sm:text-5xl font-bold italic mb-4"
+                style={{ fontFamily: 'var(--font-playfair)', color: 'var(--color-cream)', lineHeight: 1.1 }}
+              >
                 {branch.name}
               </h1>
-              <p className="text-sm text-stone-400 max-w-2xl">
-                {branch.address}
+
+              <p className="text-sm mb-6" style={{ color: 'var(--color-muted)' }}>
+                {branch.address}, {branch.pincode}
               </p>
+
+              <div className="flex flex-wrap gap-4 text-sm">
+                <div className="flex items-center gap-2" style={{ color: 'var(--color-parchment)' }}>
+                  <Clock className="w-4 h-4" style={{ color: 'var(--color-gold)' }} />
+                  {branch.openTime?.substring(0, 5) || '09:00'} – {branch.closeTime?.substring(0, 5) || '21:00'} IST
+                </div>
+                {branch.phone && (
+                  <div className="flex items-center gap-2" style={{ color: 'var(--color-parchment)' }}>
+                    <Phone className="w-4 h-4" style={{ color: 'var(--color-gold)' }} />
+                    {branch.phone}
+                  </div>
+                )}
+                {branch.mapsUrl && (
+                  <a
+                    href={branch.mapsUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 font-medium transition-colors duration-200"
+                    style={{ color: 'var(--color-gold)' }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--color-gold-light)'; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--color-gold)'; }}
+                  >
+                    <MapPin className="w-4 h-4" /> View on Google Maps ↗
+                  </a>
+                )}
+              </div>
             </div>
 
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-              {branch.mapsUrl && (
-                <a
-                  href={branch.mapsUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 bg-stone-950 hover:bg-stone-800 border border-stone-700 text-stone-200 px-4 py-3 rounded-xl text-xs font-semibold transition"
-                >
-                  <MapPin className="w-4 h-4 text-amber-400" />
-                  <span>Google Maps Directions</span>
-                </a>
-              )}
-
-              {!unlocked && (
-                <button
-                  onClick={() => setUnlockModalOpen(true)}
-                  className="inline-flex items-center gap-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-stone-950 px-5 py-3 rounded-xl text-xs font-bold shadow-lg shadow-amber-500/20 transition cursor-pointer"
-                >
-                  <Lock className="w-4 h-4" />
-                  <span>Unlock Staff Today (₹100.98)</span>
-                </button>
+            {/* Unlock status card */}
+            <div
+              className="shrink-0 w-full lg:w-72 p-6 rounded-2xl"
+              style={{ background: 'var(--glass-bg)', border: `1px solid ${unlocked ? 'rgba(52,211,153,0.3)' : 'rgba(255,255,255,0.08)'}` }}
+            >
+              {unlocked ? (
+                <div className="space-y-3">
+                  <div className="badge-jade text-sm px-0 py-0 border-0 bg-transparent flex items-center gap-2">
+                    <CheckCircle2 className="w-5 h-5" />
+                    <span className="font-bold">Today&apos;s Roster Unlocked</span>
+                  </div>
+                  <div className="text-sm" style={{ color: 'var(--color-jade)', fontFamily: 'var(--font-mono)' }}>
+                    ⏱ {countdown}
+                  </div>
+                  <div className="text-xs" style={{ color: 'var(--color-muted)' }}>
+                    Access expires at 11:59 PM IST tonight. Scroll down to view all therapists.
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2" style={{ color: 'var(--color-gold-light)' }}>
+                    <Lock className="w-5 h-5" />
+                    <span className="font-bold text-sm">Therapists Locked</span>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs" style={{ color: 'var(--color-muted)' }}>Base price</span>
+                      <span className="text-sm font-semibold" style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-parchment)' }}>₹99.00</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs" style={{ color: 'var(--color-muted)' }}>Online tax (2%)</span>
+                      <span className="text-sm font-semibold" style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-parchment)' }}>₹1.98</span>
+                    </div>
+                    <div className="flex items-center justify-between pt-2" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                      <span className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--color-cream)' }}>Total</span>
+                      <span className="text-xl font-bold" style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-gold-light)' }}>₹100.98</span>
+                    </div>
+                  </div>
+                  <div className="text-xs" style={{ color: 'var(--color-muted)' }}>
+                    Valid until 11:59 PM IST tonight only.
+                  </div>
+                  <button
+                    onClick={() => user ? setUnlockModalOpen(true) : (window.location.href = '/auth/login')}
+                    className="btn-gold w-full py-3 text-xs uppercase tracking-wider font-bold cursor-pointer"
+                    style={{ borderRadius: 10 }}
+                  >
+                    <span style={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                      <Key className="w-4 h-4" />
+                      {user ? 'Unlock Today\'s Roster' : 'Sign In to Unlock'}
+                    </span>
+                  </button>
+                </div>
               )}
             </div>
           </div>
-
-          {/* Quick Info Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8 pt-6 border-t border-stone-800/80 text-xs">
-            <div className="bg-stone-950/60 border border-stone-800/80 p-3.5 rounded-xl">
-              <div className="text-stone-400 flex items-center gap-1.5 mb-1">
-                <Clock className="w-3.5 h-3.5 text-amber-400" /> Operating Hours
-              </div>
-              <div className="font-semibold text-stone-200">
-                {branch.openTime ? branch.openTime.substring(0, 5) : '09:00'} – {branch.closeTime ? branch.closeTime.substring(0, 5) : '21:00'} IST
-              </div>
-            </div>
-
-            <div className="bg-stone-950/60 border border-stone-800/80 p-3.5 rounded-xl">
-              <div className="text-stone-400 flex items-center gap-1.5 mb-1">
-                <Phone className="w-3.5 h-3.5 text-amber-400" /> Reception Desk
-              </div>
-              <div className="font-semibold text-stone-200">{branch.phone || '+91 80 4123 4567'}</div>
-            </div>
-
-            <div className="bg-stone-950/60 border border-stone-800/80 p-3.5 rounded-xl">
-              <div className="text-stone-400 flex items-center gap-1.5 mb-1">
-                <Sparkles className="w-3.5 h-3.5 text-amber-400" /> Treatments
-              </div>
-              <div className="font-semibold text-stone-200">{services.length} Signature Rituals</div>
-            </div>
-
-            <div className="bg-stone-950/60 border border-stone-800/80 p-3.5 rounded-xl">
-              <div className="text-stone-400 flex items-center gap-1.5 mb-1">
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" /> Today&apos;s Status
-              </div>
-              <div className="font-semibold text-emerald-400">
-                {unlocked ? `Unlocked (${remainingTime || 'Active'})` : 'Staff Gated (₹99)'}
-              </div>
-            </div>
-          </div>
-
         </div>
       </section>
 
-      {/* 2. TODAY'S THERAPISTS SECTION (LOCKED VS UNLOCKED) */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
-        
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-stone-800 pb-4">
-          <div>
-            <div className="text-xs font-bold text-amber-400 uppercase tracking-widest flex items-center gap-2">
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>Certified Practitioners</span>
+      {/* ── Staff Section ───────────────────────────────── */}
+      <section className="py-16 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto">
+
+          <div className="flex items-center justify-between mb-10">
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-6 h-px" style={{ background: 'var(--color-gold)' }} />
+                <span className="text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--color-gold)' }}>
+                  {unlocked ? "Today's Active Roster" : 'Certified Therapists'}
+                </span>
+              </div>
+              <h2
+                className="text-3xl font-bold italic"
+                style={{ fontFamily: 'var(--font-playfair)', color: 'var(--color-cream)' }}
+              >
+                {unlocked ? `${staff.length} Therapist${staff.length !== 1 ? 's' : ''} at ${branch.city}` : 'Unlock to See Therapists'}
+              </h2>
             </div>
-            <h2 className="font-serif text-2xl sm:text-3xl font-bold text-stone-100 mt-1">
-              Today&apos;s Available Therapists
-            </h2>
           </div>
 
-          {unlocked && (
-            <div className="inline-flex items-center gap-2 bg-emerald-950/60 border border-emerald-800/60 text-emerald-300 px-4 py-1.5 rounded-full text-xs font-semibold">
-              <Key className="w-4 h-4 text-emerald-400" />
-              <span>Access active until 11:59 PM IST tonight ({remainingTime} remaining)</span>
+          {/* ── LOCKED STATE: blurred silhouettes ─────── */}
+          {!unlocked && (
+            <div className="relative">
+              {/* Blurred preview grid */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {[1, 2, 3].map(i => <LockedStaffCard key={i} />)}
+              </div>
+
+              {/* Paywall overlay */}
+              <div
+                className="absolute inset-0 flex items-center justify-center"
+                style={{ background: 'linear-gradient(to bottom, transparent 0%, rgba(10,9,6,0.85) 40%, rgba(10,9,6,0.97) 100%)' }}
+              >
+                <div
+                  className="text-center p-10 rounded-3xl max-w-md mx-4"
+                  style={{
+                    background: 'rgba(10,9,6,0.92)',
+                    border: '1px solid rgba(212,175,55,0.2)',
+                    backdropFilter: 'blur(16px)',
+                  }}
+                >
+                  <div
+                    className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-5"
+                    style={{ background: 'rgba(212,175,55,0.1)', border: '1px solid rgba(212,175,55,0.25)' }}
+                  >
+                    <Key className="w-7 h-7" style={{ color: 'var(--color-gold)' }} />
+                  </div>
+                  <h3
+                    className="text-2xl font-bold italic mb-3"
+                    style={{ fontFamily: 'var(--font-playfair)', color: 'var(--color-cream)' }}
+                  >
+                    Unlock Today&apos;s Roster
+                  </h3>
+                  <p className="text-sm mb-6 leading-relaxed" style={{ color: 'var(--color-muted)' }}>
+                    See exactly who is confirmed present today at {branch.city}. Valid until 11:59 PM IST.
+                  </p>
+
+                  <div
+                    className="flex items-center justify-between p-4 rounded-xl mb-5 text-sm"
+                    style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}
+                  >
+                    <span style={{ color: 'var(--color-muted)' }}>₹99 base + 2% tax</span>
+                    <span className="font-bold text-xl" style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-gold-light)' }}>₹100.98</span>
+                  </div>
+
+                  <div className="space-y-2 mb-6">
+                    {[
+                      'View all confirmed therapists today',
+                      'See specializations & live presence badge',
+                      'Book your session immediately',
+                    ].map(item => (
+                      <div key={item} className="flex items-center gap-2 text-xs text-left" style={{ color: 'var(--color-parchment)' }}>
+                        <CheckCircle2 className="w-4 h-4 shrink-0" style={{ color: 'var(--color-jade)' }} />
+                        {item}
+                      </div>
+                    ))}
+                  </div>
+
+                  <button
+                    onClick={() => user ? setUnlockModalOpen(true) : (window.location.href = '/auth/login')}
+                    className="btn-gold w-full py-3.5 text-sm uppercase tracking-wider font-bold cursor-pointer"
+                    style={{ borderRadius: 12 }}
+                  >
+                    <span style={{ position: 'relative', zIndex: 2 }}>
+                      {user ? `Unlock for ₹100.98` : 'Sign In to Unlock'}
+                    </span>
+                  </button>
+                </div>
+              </div>
             </div>
           )}
-        </div>
 
-        {/* --- UNLOCKED STATE --- */}
-        {unlocked ? (
-          <div>
-            {staffLoading ? (
-              <div className="py-12 text-center text-xs text-stone-400">
-                <div className="w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
-                <span>Loading therapist roster & live check-ins...</span>
-              </div>
-            ) : staff.length > 0 ? (
+          {/* ── UNLOCKED STATE: Staff grid ─────────────── */}
+          {unlocked && (
+            staffLoading ? (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {staff.map(member => (
-                  <div
-                    key={member.id}
-                    className="bg-stone-900/70 border border-stone-800 rounded-2xl p-6 flex flex-col justify-between space-y-5 hover:border-amber-500/40 transition group hover:shadow-xl hover:shadow-amber-500/5"
-                  >
-                    <div className="space-y-4">
-                      
-                      {/* Photo & Presence Header */}
-                      <div className="flex items-start gap-4">
-                        <div className="w-16 h-16 rounded-2xl bg-stone-800 overflow-hidden border border-stone-700 shrink-0 relative">
-                          {member.profilePhotoUrl ? (
-                            /* eslint-disable-next-line @next/next/no-img-element */
-                            <img
-                              src={member.profilePhotoUrl}
-                              alt={member.name}
-                              className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
-                            />
-                          ) : (
-                            <User className="w-8 h-8 text-stone-500 m-4" />
-                          )}
-                        </div>
-
-                        <div className="space-y-1">
-                          <h3 className="font-serif text-lg font-bold text-stone-100 group-hover:text-amber-200 transition">
-                            {member.name}
-                          </h3>
-                          <p className="text-xs text-stone-400 font-medium">
-                            {member.specialization}
-                          </p>
-
-                          {/* Check-in Presence Badge */}
-                          <div className="pt-1">
-                            {member.todayCheckinStatus === 'PRESENT' && (
-                              <span className="inline-flex items-center gap-1 bg-emerald-950/60 border border-emerald-800/50 text-emerald-300 text-[10px] font-bold px-2 py-0.5 rounded-md">
-                                <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                                Confirmed In Today
-                              </span>
-                            )}
-                            {member.todayCheckinStatus === 'ON_LEAVE' && (
-                              <span className="inline-flex items-center gap-1 bg-rose-950/60 border border-rose-800/50 text-rose-300 text-[10px] font-bold px-2 py-0.5 rounded-md">
-                                <XCircle className="w-3 h-3 text-rose-400" />
-                                On Leave Today
-                              </span>
-                            )}
-                            {member.todayCheckinStatus === 'NOT_CONFIRMED_YET' && (
-                              <span className="inline-flex items-center gap-1 bg-amber-950/60 border border-amber-800/50 text-amber-300 text-[10px] font-bold px-2 py-0.5 rounded-md">
-                                <Clock className="w-3 h-3 text-amber-400" />
-                                Check-in Pending
-                              </span>
+                {[1, 2, 3].map(i => (
+                  <div key={i} className="h-56 rounded-2xl bg-white/5 animate-pulse" />
+                ))}
+              </div>
+            ) : staff.length === 0 ? (
+              <div
+                className="text-center py-16 rounded-2xl"
+                style={{ background: 'var(--glass-bg)', border: '1px solid var(--glass-border)' }}
+              >
+                <p className="text-lg font-semibold mb-2" style={{ color: 'var(--color-parchment)' }}>No staff roster today</p>
+                <p className="text-sm" style={{ color: 'var(--color-muted)' }}>Check back after 8:30 AM for daily check-ins.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {staff.map(s => {
+                  const present = s.presentToday;
+                  return (
+                    <div
+                      key={s.id}
+                      className="glass-card p-6 flex flex-col gap-5"
+                      style={{ borderRadius: 20, borderColor: present ? 'rgba(52,211,153,0.15)' : 'var(--glass-border)' }}
+                    >
+                      {/* Avatar + presence ring */}
+                      <div className="flex items-center gap-4">
+                        <div
+                          className="relative shrink-0"
+                          style={{
+                            padding: 2,
+                            borderRadius: '50%',
+                            background: present
+                              ? 'linear-gradient(135deg, rgba(52,211,153,0.5), rgba(52,211,153,0.1))'
+                              : 'rgba(255,255,255,0.06)',
+                          }}
+                        >
+                          <div
+                            className="w-16 h-16 rounded-full overflow-hidden"
+                            style={{ background: 'rgba(255,255,255,0.08)' }}
+                          >
+                            {s.profilePhotoUrl ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={s.profilePhotoUrl} alt={s.name} className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center text-xl font-bold" style={{ color: 'var(--color-gold)', fontFamily: 'var(--font-playfair)' }}>
+                                {s.name.split(' ').map((w: string) => w[0]).slice(0, 2).join('')}
+                              </div>
                             )}
                           </div>
                         </div>
+
+                        <div className="flex-1 min-w-0">
+                          <h3
+                            className="font-bold text-base truncate"
+                            style={{ fontFamily: 'var(--font-playfair)', color: 'var(--color-cream)' }}
+                          >
+                            {s.name}
+                          </h3>
+                          {present ? (
+                            <div className="badge-jade mt-1.5 inline-flex">
+                              <span className="presence-dot-present" />
+                              Present Today
+                            </div>
+                          ) : (
+                            <div className="badge-rose mt-1.5 inline-flex">
+                              <XCircle className="w-3 h-3" />
+                              On Leave
+                            </div>
+                          )}
+                        </div>
                       </div>
 
-                      {member.bio && (
-                        <p className="text-xs text-stone-400 line-clamp-3 leading-relaxed border-t border-stone-800/80 pt-3">
-                          {member.bio}
-                        </p>
+                      {/* Specializations */}
+                      {s.specializations && s.specializations.length > 0 && (
+                        <div className="flex flex-wrap gap-2">
+                          {s.specializations.map((spec: string) => (
+                            <span
+                              key={spec}
+                              className="px-2.5 py-1 rounded-full text-[11px] font-medium"
+                              style={{ background: 'rgba(212,175,55,0.08)', border: '1px solid rgba(212,175,55,0.15)', color: 'var(--color-gold-light)' }}
+                            >
+                              {spec}
+                            </span>
+                          ))}
+                        </div>
                       )}
 
-                    </div>
-
-                    {/* Booking Action */}
-                    <div className="pt-3 border-t border-stone-800">
+                      {/* Book button */}
                       <button
+                        disabled={!present}
                         onClick={() => {
-                          setSelectedStaffForBooking(member);
-                          setBookingModalOpen(true);
+                          if (present) {
+                            setSelectedStaffForBooking(s);
+                            setBookingModalOpen(true);
+                          }
                         }}
-                        disabled={member.todayCheckinStatus === 'ON_LEAVE'}
-                        className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${
-                          member.todayCheckinStatus === 'ON_LEAVE'
-                            ? 'bg-stone-800 text-stone-500 cursor-not-allowed'
-                            : 'bg-amber-500 hover:bg-amber-600 text-stone-950 shadow-md shadow-amber-500/20'
-                        }`}
+                        className="w-full py-3 rounded-xl text-xs font-bold uppercase tracking-wide transition-all duration-200 cursor-pointer"
+                        style={present
+                          ? { background: 'linear-gradient(135deg, #D4AF37, #A08828)', color: '#0A0906' }
+                          : { background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', color: 'var(--color-muted)', cursor: 'not-allowed', opacity: 0.5 }
+                        }
                       >
-                        <Calendar className="w-3.5 h-3.5" />
-                        <span>
-                          {member.todayCheckinStatus === 'ON_LEAVE' ? 'Unavailable Today' : 'Book Session with ' + member.name.split(' ')[0]}
+                        <span className="flex items-center justify-center gap-2">
+                          {present ? <><Calendar className="w-3.5 h-3.5" /> Book Session</> : 'Not Available Today'}
                         </span>
                       </button>
                     </div>
-
-                  </div>
-                ))}
+                  );
+                })}
               </div>
-            ) : (
-              <div className="bg-stone-900/40 border border-stone-800 rounded-2xl p-8 text-center text-xs text-stone-400">
-                No therapists are assigned to this branch yet.
-              </div>
-            )}
-          </div>
-        ) : (
-          /* --- LOCKED PAYWALL CARD --- */
-          <div className="bg-gradient-to-br from-stone-900 via-stone-900 to-stone-950 border border-amber-500/30 rounded-3xl p-8 sm:p-12 text-center space-y-6 shadow-2xl relative overflow-hidden">
-            
-            <div className="w-16 h-16 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-center justify-center mx-auto text-amber-400 shadow-inner">
-              <Lock className="w-8 h-8" />
-            </div>
-
-            <div className="max-w-xl mx-auto space-y-2">
-              <h3 className="font-serif text-2xl sm:text-3xl font-bold text-stone-100">
-                Live Therapist Roster is Locked
-              </h3>
-              <p className="text-xs sm:text-sm text-stone-400 leading-relaxed">
-                To guarantee safety, verified attendance, and exclusivity, viewing which therapists are on duty at <strong className="text-amber-200">{branch.name}</strong> requires a daily unlock.
-              </p>
-            </div>
-
-            {/* Pricing Box */}
-            <div className="inline-flex items-baseline gap-2 bg-stone-950 border border-stone-800 px-6 py-3 rounded-2xl">
-              <span className="text-xs text-stone-400">Unlock Today:</span>
-              <span className="font-serif text-2xl font-bold text-amber-300">₹99.00</span>
-              <span className="text-[11px] text-stone-500">+ 2% tax (₹100.98 Total)</span>
-            </div>
-
-            <div>
-              <button
-                onClick={() => setUnlockModalOpen(true)}
-                className="inline-flex items-center gap-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-stone-950 font-bold px-8 py-3.5 rounded-xl shadow-xl shadow-amber-500/20 text-sm tracking-wide transition cursor-pointer"
-              >
-                <Lock className="w-4 h-4" />
-                <span>Unlock Available Therapists for ₹100.98</span>
-              </button>
-              <p className="text-[11px] text-stone-500 mt-2">
-                Valid for 1 Day • Access expires at 11:59 PM IST tonight
-              </p>
-            </div>
-
-          </div>
-        )}
-
+            )
+          )}
+        </div>
       </section>
 
-      {/* 3. TREATMENTS / SERVICES CATALOG FOR THIS BRANCH */}
-      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
-        
-        <div className="border-b border-stone-800 pb-4">
-          <div className="text-xs font-bold text-amber-400 uppercase tracking-widest">
-            Ritual Menu
-          </div>
-          <h2 className="font-serif text-2xl sm:text-3xl font-bold text-stone-100 mt-1">
-            Treatments at {branch.name}
-          </h2>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {services.map(svc => (
-            <div
-              key={svc.id}
-              className="bg-stone-900/60 border border-stone-800 rounded-2xl p-6 flex flex-col justify-between space-y-4 hover:border-amber-500/30 transition group"
-            >
-              <div className="space-y-3">
-                <div className="flex justify-between items-start">
-                  <span className="text-[10px] uppercase font-bold text-amber-400 bg-amber-950/60 border border-amber-800/40 px-2.5 py-1 rounded-full">
-                    {svc.category}
-                  </span>
-                  <span className="text-xs text-stone-400 flex items-center gap-1">
-                    <Clock className="w-3.5 h-3.5 text-stone-500" /> {svc.durationMinutes} mins
-                  </span>
-                </div>
-
-                <h3 className="font-serif text-lg font-bold text-stone-100 group-hover:text-amber-200 transition">
-                  {svc.name}
-                </h3>
-                <p className="text-xs text-stone-400 leading-relaxed">
-                  {svc.description}
-                </p>
-              </div>
-
-              <div className="pt-4 border-t border-stone-800 flex items-center justify-between">
-                <div>
-                  <div className="text-[10px] text-stone-500 uppercase">Base Price</div>
-                  <div className="font-serif text-xl font-bold text-amber-300">₹{svc.price}</div>
-                </div>
-
-                <button
-                  onClick={() => {
-                    if (!unlocked) {
-                      setUnlockModalOpen(true);
-                    } else {
-                      setSelectedServiceForBooking(svc);
-                      setBookingModalOpen(true);
-                    }
-                  }}
-                  className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
-                    unlocked
-                      ? 'bg-amber-500 hover:bg-amber-600 text-stone-950'
-                      : 'bg-stone-800 hover:bg-stone-700 text-stone-300'
-                  }`}
+      {/* ── Services at this branch ──────────────────────── */}
+      {services.length > 0 && (
+        <section className="py-16 px-4 sm:px-6 lg:px-8" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+          <div className="max-w-7xl mx-auto">
+            <div className="flex items-center gap-2 mb-8">
+              <div className="w-6 h-px" style={{ background: 'var(--color-gold)' }} />
+              <span className="text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--color-gold)' }}>
+                Available Treatments
+              </span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+              {services.map(svc => (
+                <div
+                  key={svc.id}
+                  className="glass-card p-5 flex flex-col justify-between gap-4"
+                  style={{ borderRadius: 16 }}
                 >
-                  <span>{unlocked ? 'Book Now' : '🔒 Unlock to Book'}</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
+                  <div>
+                    <span
+                      className="inline-block px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider mb-3"
+                      style={{ background: 'rgba(212,175,55,0.08)', border: '1px solid rgba(212,175,55,0.2)', color: 'var(--color-gold-light)' }}
+                    >
+                      {svc.category}
+                    </span>
+                    <h3
+                      className="font-bold text-sm"
+                      style={{ fontFamily: 'var(--font-playfair)', color: 'var(--color-cream)' }}
+                    >
+                      {svc.name}
+                    </h3>
+                    <p className="text-xs mt-1.5 leading-relaxed line-clamp-2" style={{ color: 'var(--color-muted)' }}>
+                      {svc.description}
+                    </p>
+                  </div>
+                  <div className="flex items-center justify-between pt-3" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                    <div>
+                      <div className="text-[10px] uppercase" style={{ color: 'var(--color-muted)' }}>{svc.durationMinutes} min</div>
+                      <div className="font-bold text-base" style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-gold-light)' }}>₹{svc.price}</div>
+                    </div>
+                    {unlocked && (
+                      <button
+                        onClick={() => { setSelectedServiceForBooking(svc); setBookingModalOpen(true); }}
+                        className="flex items-center gap-1 text-xs font-semibold cursor-pointer transition-colors duration-200"
+                        style={{ color: 'var(--color-gold)' }}
+                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--color-gold-light)'; }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--color-gold)'; }}
+                      >
+                        Book <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          </div>
+        </section>
+      )}
 
-      </section>
-
-      {/* Unlock Paywall Modal */}
-      <UnlockModal
-        isOpen={unlockModalOpen}
-        onClose={() => setUnlockModalOpen(false)}
-        branchId={branch.id}
-        branchName={branch.name}
-        branchCity={branch.city}
-        onSuccess={() => {
-          loadStaffData();
-        }}
-      />
-
-      {/* Booking Modal */}
-      <BookingModal
-        isOpen={bookingModalOpen}
-        onClose={() => {
-          setBookingModalOpen(false);
-          setSelectedStaffForBooking(null);
-          setSelectedServiceForBooking(null);
-        }}
-        branchId={branch.id}
-        branchName={branch.name}
-        branchCity={branch.city}
-        initialStaff={selectedStaffForBooking}
-        initialService={selectedServiceForBooking}
-      />
-
+      {/* Modals */}
+      {unlockModalOpen && branch && (
+        <UnlockModal
+          isOpen={unlockModalOpen}
+          onClose={() => setUnlockModalOpen(false)}
+          branchId={branchId}
+          branchName={branch.name}
+          branchCity={branch.city}
+          onSuccess={() => { setUnlockModalOpen(false); window.location.reload(); }}
+        />
+      )}
+      {bookingModalOpen && branch && (
+        <BookingModal
+          isOpen={bookingModalOpen}
+          onClose={() => { setBookingModalOpen(false); setSelectedStaffForBooking(null); setSelectedServiceForBooking(null); }}
+          branchId={branchId}
+          branchName={branch.name}
+          branchCity={branch.city}
+          preselectedStaff={selectedStaffForBooking}
+          preselectedService={selectedServiceForBooking}
+        />
+      )}
     </div>
   );
 }

@@ -10,832 +10,636 @@ import {
   AgentResponse,
   AppointmentResponse,
   PaymentSummaryDto,
-  SpaServiceResponse,
-  BranchCheckinStatusResponse,
 } from '@/lib/api';
 import {
-  Shield,
-  MapPin,
-  Users,
-  UserCheck,
-  Calendar,
-  CreditCard,
-  Sparkles,
-  Plus,
-  Trash2,
-  Edit2,
-  CheckCircle2,
-  XCircle,
-  Clock,
-  Camera,
-  Search,
-  RefreshCw,
-  TrendingUp,
+  Shield, MapPin, Users, UserCheck, Calendar, CreditCard,
+  Plus, Trash2, CheckCircle2, XCircle, Clock, RefreshCw,
+  TrendingUp, X, Loader2, LayoutDashboard,
 } from 'lucide-react';
+
+type NavSection = 'OVERVIEW' | 'BRANCHES' | 'STAFF' | 'AGENTS' | 'APPOINTMENTS' | 'PAYMENTS';
+
+function SidebarItem({ label, icon, active, badge, onClick }: {
+  label: string; icon: React.ReactNode; active: boolean; badge?: number; onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium text-left cursor-pointer transition-all duration-200 ${active ? 'sidebar-active' : ''}`}
+      style={!active ? { color: 'var(--color-muted)' } : {}}
+      onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.color = 'var(--color-parchment)'; }}
+      onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.color = 'var(--color-muted)'; }}
+    >
+      <span className="flex items-center gap-3"><span className="shrink-0">{icon}</span>{label}</span>
+      {badge !== undefined && badge > 0 && (
+        <span
+          className="text-[10px] px-2 py-0.5 rounded-full font-bold"
+          style={{ background: active ? 'rgba(212,175,55,0.25)' : 'rgba(255,255,255,0.08)', color: active ? 'var(--color-gold-light)' : 'var(--color-muted)' }}
+        >
+          {badge}
+        </span>
+      )}
+    </button>
+  );
+}
+
+function GlowStatCard({ label, value, sub, icon, accent = 'gold' }: {
+  label: string; value: string; sub?: string; icon: React.ReactNode;
+  accent?: 'gold' | 'jade' | 'rose' | 'blue';
+}) {
+  const colors = {
+    gold: { color: 'var(--color-gold-light)', bg: 'rgba(212,175,55,0.08)', border: 'rgba(212,175,55,0.2)', glow: 'rgba(212,175,55,0.1)' },
+    jade: { color: 'var(--color-jade)', bg: 'rgba(52,211,153,0.08)', border: 'rgba(52,211,153,0.2)', glow: 'rgba(52,211,153,0.08)' },
+    rose: { color: 'var(--color-rose-soft)', bg: 'rgba(251,113,133,0.08)', border: 'rgba(251,113,133,0.2)', glow: 'rgba(251,113,133,0.06)' },
+    blue: { color: '#60a5fa', bg: 'rgba(96,165,250,0.08)', border: 'rgba(96,165,250,0.2)', glow: 'rgba(96,165,250,0.06)' },
+  }[accent];
+
+  return (
+    <div
+      className="glass-card p-6 flex flex-col gap-2 relative overflow-hidden"
+      style={{ borderRadius: 16, borderColor: colors.border }}
+    >
+      <div
+        className="absolute top-0 right-0 w-24 h-24 pointer-events-none"
+        style={{ background: `radial-gradient(circle, ${colors.glow} 0%, transparent 70%)` }}
+      />
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--color-muted)' }}>{label}</span>
+        <span style={{ color: colors.color }}>{icon}</span>
+      </div>
+      <div className="text-3xl font-bold" style={{ fontFamily: 'var(--font-mono)', color: colors.color }}>{value}</div>
+      {sub && <div className="text-xs" style={{ color: 'var(--color-muted)' }}>{sub}</div>}
+    </div>
+  );
+}
+
+function FormModal({ title, isOpen, onClose, children }: { title: string; isOpen: boolean; onClose: () => void; children: React.ReactNode }) {
+  if (!isOpen) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.78)', backdropFilter: 'blur(6px)' }}>
+      <div
+        className="modal-enter relative w-full max-w-xl max-h-[92vh] overflow-y-auto"
+        style={{ background: 'rgba(14,12,8,0.97)', border: '1px solid rgba(212,175,55,0.18)', borderRadius: 24 }}
+      >
+        <div className="flex items-center justify-between p-6 pb-0">
+          <h2 className="text-xl font-bold italic" style={{ fontFamily: 'var(--font-playfair)', color: 'var(--color-cream)' }}>{title}</h2>
+          <button
+            onClick={onClose}
+            className="w-8 h-8 rounded-full flex items-center justify-center cursor-pointer"
+            style={{ background: 'rgba(255,255,255,0.06)', color: 'var(--color-muted)' }}
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="p-6">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function InputField({ label, ...props }: React.InputHTMLAttributes<HTMLInputElement> & { label: string }) {
+  return (
+    <div>
+      <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--color-parchment)' }}>{label}</label>
+      <input className="input-glass text-sm" {...props} />
+    </div>
+  );
+}
 
 export default function AdminDashboardPage() {
   const router = useRouter();
   const { user } = useAuth();
 
-  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'BRANCHES' | 'STAFF' | 'AGENTS' | 'COMPLIANCE' | 'APPOINTMENTS' | 'PAYMENTS'>('OVERVIEW');
-  const [stats, setStats] = useState<any>({});
+  const [activeSection, setActiveSection] = useState<NavSection>('OVERVIEW');
+  const [stats, setStats] = useState<Record<string, unknown>>({});
   const [branches, setBranches] = useState<BranchResponse[]>([]);
   const [staff, setStaff] = useState<StaffCardResponse[]>([]);
   const [agents, setAgents] = useState<AgentResponse[]>([]);
   const [appointments, setAppointments] = useState<AppointmentResponse[]>([]);
   const [payments, setPayments] = useState<PaymentSummaryDto[]>([]);
   const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const [formLoading, setFormLoading] = useState(false);
 
-  // Form Modals
+  // Branch form
   const [branchModalOpen, setBranchModalOpen] = useState(false);
-  const [branchForm, setBranchForm] = useState({
-    name: '',
-    address: '',
-    city: '',
-    state: '',
-    pincode: '',
-    phone: '',
-    latitude: '',
-    longitude: '',
-    mapsUrl: '',
-    openTime: '09:00',
-    closeTime: '21:00',
-  });
+  const [branchForm, setBranchForm] = useState({ name: '', address: '', city: '', state: '', pincode: '', phone: '', latitude: '', longitude: '', mapsUrl: '', openTime: '09:00', closeTime: '21:00' });
 
+  // Staff form
   const [staffModalOpen, setStaffModalOpen] = useState(false);
-  const [staffForm, setStaffForm] = useState({
-    branchId: '',
-    name: '',
-    specialization: '',
-    bio: '',
-    profilePhotoUrl: '',
-  });
+  const [staffForm, setStaffForm] = useState({ branchId: '', name: '', specialization: '', bio: '', profilePhotoUrl: '' });
 
+  // Agent form
   const [agentModalOpen, setAgentModalOpen] = useState(false);
-  const [agentForm, setAgentForm] = useState({
-    fullName: '',
-    email: '',
-    phone: '',
-    password: '',
-    assignedBranchId: '',
-  });
+  const [agentForm, setAgentForm] = useState({ fullName: '', email: '', phone: '', password: '', assignedBranchId: '' });
+
+  const showMsg = (text: string, type: 'success' | 'error' = 'success') => {
+    setMessage({ text, type });
+    setTimeout(() => setMessage(null), 4000);
+  };
 
   const loadAllAdminData = () => {
     setLoading(true);
     Promise.all([
-      apiFetch<any>('/admin/dashboard').catch(() => ({})),
+      apiFetch<Record<string, unknown>>('/admin/dashboard').catch(() => ({})),
       apiFetch<BranchResponse[]>('/admin/branches').catch(() => []),
       apiFetch<StaffCardResponse[]>('/admin/staff').catch(() => []),
       apiFetch<AgentResponse[]>('/admin/agents').catch(() => []),
       apiFetch<AppointmentResponse[]>('/admin/appointments').catch(() => []),
       apiFetch<PaymentSummaryDto[]>('/admin/payments').catch(() => []),
-    ])
-      .then(([statsData, branchesData, staffData, agentsData, apptsData, paymentsData]) => {
-        setStats(statsData);
-        setBranches(branchesData);
-        setStaff(staffData);
-        setAgents(agentsData);
-        setAppointments(apptsData);
-        setPayments(paymentsData);
-        if (!staffForm.branchId && branchesData.length > 0) {
-          setStaffForm(prev => ({ ...prev, branchId: branchesData[0].id }));
-        }
-        if (!agentForm.assignedBranchId && branchesData.length > 0) {
-          setAgentForm(prev => ({ ...prev, assignedBranchId: branchesData[0].id }));
-        }
-      })
-      .finally(() => setLoading(false));
+    ]).then(([s, b, st, ag, ap, py]) => {
+      setStats(s); setBranches(b); setStaff(st); setAgents(ag); setAppointments(ap); setPayments(py);
+      if (!staffForm.branchId && b.length > 0) setStaffForm(prev => ({ ...prev, branchId: b[0].id }));
+      if (!agentForm.assignedBranchId && b.length > 0) setAgentForm(prev => ({ ...prev, assignedBranchId: b[0].id }));
+    }).finally(() => setLoading(false));
   };
 
   useEffect(() => {
-    if (!user) {
-      router.push('/auth/login?redirect=/admin/dashboard');
-      return;
-    }
-    if (user.role !== 'ADMIN' && user.role !== 'SUPER_ADMIN') {
-      router.push('/');
-      return;
-    }
+    if (!user) { router.push('/auth/login'); return; }
+    if (user.role !== 'ADMIN' && user.role !== 'SUPER_ADMIN') { router.push('/'); return; }
     loadAllAdminData();
-  }, [user, router]);
+  }, [user, router]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Handler for creating branch with required geo-location
   const handleCreateBranch = async (e: React.FormEvent) => {
-    e.preventDefault();
+    e.preventDefault(); setFormLoading(true);
     try {
-      await apiFetch<BranchResponse>('/admin/branches', {
-        method: 'POST',
-        body: JSON.stringify({
-          ...branchForm,
-          latitude: parseFloat(branchForm.latitude),
-          longitude: parseFloat(branchForm.longitude),
-        }),
-      });
-      setMessage('Branch created successfully with geo-location & maps link!');
+      await apiFetch<BranchResponse>('/admin/branches', { method: 'POST', body: JSON.stringify({ ...branchForm, latitude: parseFloat(branchForm.latitude), longitude: parseFloat(branchForm.longitude) }) });
+      showMsg('✅ Branch created with geo-location successfully!');
       setBranchModalOpen(false);
-      setBranchForm({
-        name: '',
-        address: '',
-        city: '',
-        state: '',
-        pincode: '',
-        phone: '',
-        latitude: '',
-        longitude: '',
-        mapsUrl: '',
-        openTime: '09:00',
-        closeTime: '21:00',
-      });
+      setBranchForm({ name: '', address: '', city: '', state: '', pincode: '', phone: '', latitude: '', longitude: '', mapsUrl: '', openTime: '09:00', closeTime: '21:00' });
       loadAllAdminData();
-    } catch (err: any) {
-      setMessage(err.message || 'Failed to create branch');
-    }
+    } catch (err: unknown) { showMsg((err instanceof Error ? err.message : 'Failed to create branch'), 'error'); }
+    finally { setFormLoading(false); }
   };
 
   const handleCreateStaff = async (e: React.FormEvent) => {
-    e.preventDefault();
+    e.preventDefault(); setFormLoading(true);
     try {
-      await apiFetch<StaffCardResponse>('/admin/staff', {
-        method: 'POST',
-        body: JSON.stringify(staffForm),
-      });
-      setMessage('Therapist added to branch roster successfully!');
+      await apiFetch<StaffCardResponse>('/admin/staff', { method: 'POST', body: JSON.stringify(staffForm) });
+      showMsg('✅ Therapist added to roster!');
       setStaffModalOpen(false);
-      setStaffForm({
-        branchId: branches[0]?.id || '',
-        name: '',
-        specialization: '',
-        bio: '',
-        profilePhotoUrl: '',
-      });
+      setStaffForm({ branchId: branches[0]?.id || '', name: '', specialization: '', bio: '', profilePhotoUrl: '' });
       loadAllAdminData();
-    } catch (err: any) {
-      setMessage(err.message || 'Failed to add staff');
-    }
+    } catch (err: unknown) { showMsg((err instanceof Error ? err.message : 'Failed to add staff'), 'error'); }
+    finally { setFormLoading(false); }
   };
 
   const handleCreateAgent = async (e: React.FormEvent) => {
-    e.preventDefault();
+    e.preventDefault(); setFormLoading(true);
     try {
-      await apiFetch<AgentResponse>('/admin/agents', {
-        method: 'POST',
-        body: JSON.stringify(agentForm),
-      });
-      setMessage('Agent account created and assigned to branch!');
+      await apiFetch<AgentResponse>('/admin/agents', { method: 'POST', body: JSON.stringify(agentForm) });
+      showMsg('✅ Agent account created & assigned!');
       setAgentModalOpen(false);
-      setAgentForm({
-        fullName: '',
-        email: '',
-        phone: '',
-        password: '',
-        assignedBranchId: branches[0]?.id || '',
-      });
+      setAgentForm({ fullName: '', email: '', phone: '', password: '', assignedBranchId: branches[0]?.id || '' });
       loadAllAdminData();
-    } catch (err: any) {
-      setMessage(err.message || 'Failed to create agent');
-    }
+    } catch (err: unknown) { showMsg((err instanceof Error ? err.message : 'Failed to create agent'), 'error'); }
+    finally { setFormLoading(false); }
   };
 
   const handleDeleteStaffPhoto = async (staffId: string) => {
-    if (!confirm('Are you sure you want to permanently delete this profile photo?')) return;
+    if (!confirm('Delete this profile photo permanently?')) return;
     try {
       await apiFetch<void>(`/admin/staff/${staffId}/profile-photo`, { method: 'DELETE' });
-      setMessage('Staff profile photo deleted permanently');
-      loadAllAdminData();
-    } catch (err: any) {
-      setMessage(err.message || 'Failed to delete photo');
-    }
+      showMsg('Profile photo deleted'); loadAllAdminData();
+    } catch (err: unknown) { showMsg((err instanceof Error ? err.message : 'Failed'), 'error'); }
   };
 
-  if (!user || (user.role !== 'ADMIN' && user.role !== 'SUPER_ADMIN')) {
-    return null;
-  }
+  if (!user || (user.role !== 'ADMIN' && user.role !== 'SUPER_ADMIN')) return null;
+
+  const initials = user.fullName.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+  const totalRevenue = payments.reduce((s, p) => s + Number(p.totalAmount || 0), 0);
+
+  const navItems: { section: NavSection; label: string; icon: React.ReactNode; badge?: number }[] = [
+    { section: 'OVERVIEW', label: 'Overview', icon: <LayoutDashboard className="w-4 h-4" /> },
+    { section: 'BRANCHES', label: 'Branches', icon: <MapPin className="w-4 h-4" />, badge: branches.length },
+    { section: 'STAFF', label: 'Staff Roster', icon: <Users className="w-4 h-4" />, badge: staff.length },
+    { section: 'AGENTS', label: 'Agents', icon: <UserCheck className="w-4 h-4" />, badge: agents.length },
+    { section: 'APPOINTMENTS', label: 'Appointments', icon: <Calendar className="w-4 h-4" />, badge: appointments.length },
+    { section: 'PAYMENTS', label: 'Payments', icon: <CreditCard className="w-4 h-4" />, badge: payments.length },
+  ];
+
+  // Shared form select style
+  const selectStyle: React.CSSProperties = {
+    width: '100%',
+    background: 'rgba(255,255,255,0.04)',
+    border: '1px solid rgba(255,255,255,0.12)',
+    borderRadius: 12,
+    padding: '0.75rem 1rem',
+    color: 'var(--color-parchment)',
+    fontSize: '0.875rem',
+    outline: 'none',
+  };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8 pb-24">
-      
-      {/* Admin Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-stone-800 pb-6">
-        <div>
-          <div className="inline-flex items-center gap-2 text-xs font-bold text-amber-400 uppercase tracking-widest mb-1">
-            <Shield className="w-3.5 h-3.5" />
-            <span>Master Administration Suite</span>
+    <div className="min-h-screen flex">
+
+      {/* ── Left Sidebar (desktop) ──────────────────────── */}
+      <aside
+        className="hidden lg:flex lg:flex-col shrink-0 w-64 sticky top-20 h-[calc(100vh-5rem)] overflow-y-auto"
+        style={{ background: 'rgba(255,255,255,0.02)', borderRight: '1px solid rgba(255,255,255,0.06)' }}
+      >
+        {/* Identity */}
+        <div className="p-6" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+          <div className="flex items-center gap-3">
+            <div
+              className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shrink-0"
+              style={{ background: 'rgba(212,175,55,0.12)', border: '1.5px solid rgba(212,175,55,0.3)', color: 'var(--color-gold)' }}
+            >
+              {initials}
+            </div>
+            <div>
+              <div className="text-sm font-semibold" style={{ color: 'var(--color-cream)' }}>{user.fullName}</div>
+              <div className="badge-gold inline-flex mt-1 text-[10px] px-2 py-0.5">
+                <Shield className="w-2.5 h-2.5" /> {user.role}
+              </div>
+            </div>
           </div>
-          <h1 className="font-serif text-3xl sm:text-4xl font-bold text-stone-100">
-            Serene Haven Operations Center
-          </h1>
-          <p className="text-xs text-stone-400 mt-1">
-            Logged in as <strong>{user.fullName}</strong> ({user.role}) • {user.email}
-          </p>
         </div>
 
-        <button
-          onClick={loadAllAdminData}
-          className="inline-flex items-center gap-2 bg-stone-900 hover:bg-stone-800 border border-stone-700 text-stone-200 px-4 py-2.5 rounded-xl text-xs font-semibold transition"
-        >
-          <RefreshCw className="w-4 h-4" />
-          <span>Refresh All Metrics</span>
-        </button>
-      </div>
+        <nav className="flex-1 p-4 space-y-1">
+          {navItems.map(n => (
+            <SidebarItem key={n.section} label={n.label} icon={n.icon} badge={n.badge} active={activeSection === n.section} onClick={() => setActiveSection(n.section)} />
+          ))}
+        </nav>
 
-      {message && (
-        <div className="p-4 rounded-xl bg-amber-950/40 border border-amber-800/40 text-amber-300 text-xs flex items-center justify-between">
-          <span>{message}</span>
-          <button onClick={() => setMessage(null)} className="text-stone-400 hover:text-stone-200">
-            &times;
+        <div className="p-4 space-y-2" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+          <button onClick={loadAllAdminData} className="btn-ghost w-full flex items-center justify-center gap-2 py-2.5 text-xs font-medium cursor-pointer" style={{ borderRadius: 10 }}>
+            <RefreshCw className="w-3.5 h-3.5" /> Refresh Data
           </button>
         </div>
-      )}
+      </aside>
 
-      {/* Tab Navigation */}
-      <div className="flex flex-wrap gap-2 border-b border-stone-800 pb-4">
-        {[
-          { id: 'OVERVIEW', label: 'Executive Metrics', icon: TrendingUp },
-          { id: 'BRANCHES', label: `Branches (${branches.length})`, icon: MapPin },
-          { id: 'STAFF', label: `Staff Roster (${staff.length})`, icon: Users },
-          { id: 'AGENTS', label: `Agent Desk (${agents.length})`, icon: UserCheck },
-          { id: 'APPOINTMENTS', label: `Bookings (${appointments.length})`, icon: Calendar },
-          { id: 'PAYMENTS', label: `Revenue & Invoices (${payments.length})`, icon: CreditCard },
-        ].map(tab => {
-          const Icon = tab.icon;
-          const isActive = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${
-                isActive
-                  ? 'bg-amber-500 text-stone-950 shadow-md shadow-amber-500/20'
-                  : 'bg-stone-900/60 border border-stone-800 text-stone-400 hover:border-stone-700'
-              }`}
-            >
-              <Icon className="w-3.5 h-3.5" />
-              <span>{tab.label}</span>
-            </button>
-          );
-        })}
+      {/* ── Mobile bottom tab ─────────────────────────────── */}
+      <div
+        className="lg:hidden fixed bottom-0 left-0 right-0 z-40 flex overflow-x-auto"
+        style={{ background: 'rgba(14,12,8,0.97)', borderTop: '1px solid rgba(255,255,255,0.08)', backdropFilter: 'blur(20px)' }}
+      >
+        {navItems.map(n => (
+          <button
+            key={n.section}
+            onClick={() => setActiveSection(n.section)}
+            className="flex-1 flex flex-col items-center gap-1 py-3 text-[10px] font-medium cursor-pointer transition-colors duration-200 min-w-[60px]"
+            style={{ color: activeSection === n.section ? 'var(--color-gold-light)' : 'var(--color-muted)' }}
+          >
+            {n.icon}
+            <span>{n.label.split(' ')[0]}</span>
+          </button>
+        ))}
       </div>
 
-      {/* 1. OVERVIEW TAB */}
-      {activeTab === 'OVERVIEW' && (
-        <div className="space-y-8">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="bg-stone-900/60 border border-stone-800 rounded-2xl p-6">
-              <div className="text-xs text-stone-400 font-medium">Total Completed Revenue</div>
-              <div className="font-serif text-3xl font-bold text-amber-300 mt-2">
-                ₹{stats.totalRevenue ? Number(stats.totalRevenue).toLocaleString() : '0'}
-              </div>
-              <div className="text-[10px] text-stone-500 mt-1">From ₹99 unlocks & online bookings</div>
-            </div>
+      {/* ── Main content ─────────────────────────────────── */}
+      <main className="flex-1 min-w-0 p-6 lg:p-10 pb-24 lg:pb-10 space-y-8">
 
-            <div className="bg-stone-900/60 border border-stone-800 rounded-2xl p-6">
-              <div className="text-xs text-stone-400 font-medium">Active Spa Branches</div>
-              <div className="font-serif text-3xl font-bold text-stone-100 mt-2">
-                {stats.totalBranches || branches.length}
-              </div>
-              <div className="text-[10px] text-stone-500 mt-1">With geo-location & maps</div>
-            </div>
-
-            <div className="bg-stone-900/60 border border-stone-800 rounded-2xl p-6">
-              <div className="text-xs text-stone-400 font-medium">Therapists on Roster</div>
-              <div className="font-serif text-3xl font-bold text-stone-100 mt-2">
-                {stats.totalStaff || staff.length}
-              </div>
-              <div className="text-[10px] text-stone-500 mt-1">Across all branches</div>
-            </div>
-
-            <div className="bg-stone-900/60 border border-stone-800 rounded-2xl p-6">
-              <div className="text-xs text-stone-400 font-medium">Registered Clients</div>
-              <div className="font-serif text-3xl font-bold text-stone-100 mt-2">
-                {stats.totalClients || '0'}
-              </div>
-              <div className="text-[10px] text-stone-500 mt-1">Free client accounts</div>
-            </div>
+        {/* Message toast */}
+        {message && (
+          <div
+            className="flex items-center justify-between gap-3 p-4 rounded-xl text-sm"
+            style={{
+              background: message.type === 'success' ? 'rgba(52,211,153,0.08)' : 'rgba(251,113,133,0.08)',
+              border: `1px solid ${message.type === 'success' ? 'rgba(52,211,153,0.25)' : 'rgba(251,113,133,0.25)'}`,
+              color: message.type === 'success' ? 'var(--color-jade)' : 'var(--color-rose-soft)',
+            }}
+          >
+            <span>{message.text}</span>
+            <button onClick={() => setMessage(null)} className="cursor-pointer shrink-0"><X className="w-4 h-4" /></button>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* 2. BRANCHES TAB (WITH REQUIRED GEO-LOCATION) */}
-      {activeTab === 'BRANCHES' && (
-        <div className="space-y-6">
-          <div className="flex justify-between items-center">
-            <h2 className="font-serif text-2xl font-bold text-stone-100">Spa Branch Management</h2>
-            <button
-              onClick={() => setBranchModalOpen(true)}
-              className="inline-flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-stone-950 font-bold px-4 py-2.5 rounded-xl text-xs shadow-md shadow-amber-500/20 transition cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Add New Branch</span>
-            </button>
-          </div>
+        {/* ── OVERVIEW ────────────────────────────────────── */}
+        {activeSection === 'OVERVIEW' && (
+          <div className="space-y-8">
+            <div>
+              <h1 className="text-3xl font-bold italic mb-1" style={{ fontFamily: 'var(--font-playfair)', color: 'var(--color-cream)' }}>
+                Operations Centre
+              </h1>
+              <p className="text-sm" style={{ color: 'var(--color-muted)' }}>Serene Haven · {user.email}</p>
+            </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {branches.map(b => (
-              <div key={b.id} className="bg-stone-900/60 border border-stone-800 rounded-2xl p-6 space-y-4">
-                <div className="flex justify-between items-start">
-                  <div className="inline-flex items-center gap-1.5 bg-amber-950/60 border border-amber-800/40 text-amber-300 text-xs px-3 py-1 rounded-full font-semibold">
-                    <MapPin className="w-3.5 h-3.5 text-amber-400" />
-                    <span>{b.city}, {b.state}</span>
-                  </div>
-                  <span className="text-[10px] text-emerald-400 font-semibold bg-emerald-950/60 border border-emerald-800/50 px-2 py-0.5 rounded-md">
-                    Active
-                  </span>
-                </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              <GlowStatCard icon={<TrendingUp className="w-4 h-4" />} label="Total Revenue" value={`₹${totalRevenue.toLocaleString()}`} sub="All completed payments" accent="gold" />
+              <GlowStatCard icon={<MapPin className="w-4 h-4" />} label="Active Branches" value={String(branches.length)} sub="With GPS & Maps" accent="jade" />
+              <GlowStatCard icon={<Users className="w-4 h-4" />} label="Staff Therapists" value={String(staff.length)} sub="Across all branches" accent="blue" />
+              <GlowStatCard icon={<UserCheck className="w-4 h-4" />} label="Agents" value={String(agents.length)} sub="Branch check-in agents" accent="gold" />
+              <GlowStatCard icon={<Calendar className="w-4 h-4" />} label="Total Bookings" value={String(appointments.length)} sub="All time appointments" accent="jade" />
+              <GlowStatCard icon={<CreditCard className="w-4 h-4" />} label="Payments" value={String(payments.length)} sub="Unlock + Booking transactions" accent="rose" />
+            </div>
 
-                <div>
-                  <h3 className="font-serif text-xl font-bold text-stone-100">{b.name}</h3>
-                  <p className="text-xs text-stone-400 mt-1">{b.address}, PIN: {b.pincode}</p>
-                </div>
-
-                <div className="bg-stone-950/60 border border-stone-800 rounded-xl p-3 text-xs space-y-1.5 text-stone-300">
-                  <div className="flex justify-between">
-                    <span className="text-stone-500">Geo-Coordinates:</span>
-                    <span className="font-mono text-stone-200">{b.latitude}, {b.longitude}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-stone-500">Hours:</span>
-                    <span className="font-medium text-stone-200">{b.openTime ? b.openTime.substring(0, 5) : '09:00'} - {b.closeTime ? b.closeTime.substring(0, 5) : '21:00'}</span>
-                  </div>
-                </div>
-
-                {b.mapsUrl && (
-                  <a
-                    href={b.mapsUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 text-xs text-amber-400 hover:text-amber-300 underline"
+            {/* Quick actions */}
+            <div>
+              <h2 className="text-lg font-bold mb-4" style={{ fontFamily: 'var(--font-playfair)', color: 'var(--color-cream)' }}>Quick Actions</h2>
+              <div className="flex flex-wrap gap-3">
+                {[
+                  { label: 'Add Branch', onClick: () => { setActiveSection('BRANCHES'); setBranchModalOpen(true); }, icon: <MapPin className="w-4 h-4" /> },
+                  { label: 'Add Therapist', onClick: () => { setActiveSection('STAFF'); setStaffModalOpen(true); }, icon: <Users className="w-4 h-4" /> },
+                  { label: 'Create Agent', onClick: () => { setActiveSection('AGENTS'); setAgentModalOpen(true); }, icon: <UserCheck className="w-4 h-4" /> },
+                ].map(({ label, onClick, icon }) => (
+                  <button
+                    key={label}
+                    onClick={onClick}
+                    className="btn-gold flex items-center gap-2 px-5 py-2.5 text-xs font-bold uppercase tracking-wide cursor-pointer"
+                    style={{ borderRadius: 10 }}
                   >
-                    <MapPin className="w-3.5 h-3.5" />
-                    <span>Open in Google Maps</span>
-                  </a>
-                )}
+                    <span style={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {icon} {label}
+                    </span>
+                  </button>
+                ))}
               </div>
-            ))}
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* 3. STAFF TAB */}
-      {activeTab === 'STAFF' && (
-        <div className="space-y-6">
-          <div className="flex justify-between items-center">
-            <h2 className="font-serif text-2xl font-bold text-stone-100">Working Staff & Therapists</h2>
-            <button
-              onClick={() => setStaffModalOpen(true)}
-              className="inline-flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-stone-950 font-bold px-4 py-2.5 rounded-xl text-xs shadow-md shadow-amber-500/20 transition cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Add Therapist</span>
-            </button>
-          </div>
+        {/* ── BRANCHES ─────────────────────────────────────── */}
+        {activeSection === 'BRANCHES' && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h1 className="text-2xl font-bold italic" style={{ fontFamily: 'var(--font-playfair)', color: 'var(--color-cream)' }}>Spa Branches</h1>
+              <button onClick={() => setBranchModalOpen(true)} className="btn-gold flex items-center gap-2 px-5 py-2.5 text-xs font-bold uppercase tracking-wide cursor-pointer" style={{ borderRadius: 10 }}>
+                <span style={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', gap: 6 }}><Plus className="w-3.5 h-3.5" /> New Branch</span>
+              </button>
+            </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {staff.map(s => (
-              <div key={s.id} className="bg-stone-900/60 border border-stone-800 rounded-2xl p-6 space-y-4">
-                <div className="flex items-start gap-4">
-                  <div className="w-16 h-16 rounded-2xl bg-stone-800 overflow-hidden border border-stone-700 shrink-0">
-                    {s.profilePhotoUrl ? (
-                      /* eslint-disable-next-line @next/next/no-img-element */
-                      <img src={s.profilePhotoUrl} alt={s.name} className="w-full h-full object-cover" />
-                    ) : (
-                      <Users className="w-8 h-8 text-stone-500 m-4" />
+            {loading ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">{[1,2,3].map(i => <div key={i} className="h-40 rounded-2xl bg-white/5 animate-pulse" />)}</div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                {branches.map(b => (
+                  <div key={b.id} className="glass-card p-6 space-y-3" style={{ borderRadius: 18 }}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <h3 className="font-bold text-lg" style={{ fontFamily: 'var(--font-playfair)', color: 'var(--color-cream)' }}>{b.name}</h3>
+                        <div className="flex items-center gap-1.5 text-xs mt-1" style={{ color: 'var(--color-gold)' }}>
+                          <MapPin className="w-3 h-3" /> {b.city}, {b.state}
+                        </div>
+                      </div>
+                      <span className="badge-jade shrink-0">Active</span>
+                    </div>
+                    <p className="text-xs leading-relaxed" style={{ color: 'var(--color-muted)' }}>{b.address}</p>
+                    <div className="grid grid-cols-2 gap-2 text-xs pt-1" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                      <div style={{ color: 'var(--color-muted)' }}>Hours: <span style={{ color: 'var(--color-parchment)' }}>{b.openTime?.substring(0,5)}–{b.closeTime?.substring(0,5)}</span></div>
+                      <div style={{ color: 'var(--color-muted)' }}>Staff: <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-gold-light)' }}>{b.staffCount}</span></div>
+                    </div>
+                    {b.mapsUrl && (
+                      <a href={b.mapsUrl} target="_blank" rel="noopener noreferrer" className="text-xs flex items-center gap-1" style={{ color: 'var(--color-gold)' }}>
+                        <MapPin className="w-3 h-3" /> View on Google Maps ↗
+                      </a>
                     )}
                   </div>
-                  <div>
-                    <h3 className="font-serif text-lg font-bold text-stone-100">{s.name}</h3>
-                    <p className="text-xs text-stone-400">{s.specialization}</p>
-                    <span className="inline-block mt-1 text-[10px] text-amber-400 bg-amber-950/60 border border-amber-800/40 px-2 py-0.5 rounded-md">
-                      {s.branchName}
-                    </span>
-                  </div>
-                </div>
-
-                {s.bio && <p className="text-xs text-stone-400 line-clamp-2">{s.bio}</p>}
-
-                <div className="pt-3 border-t border-stone-800 flex items-center justify-between text-xs">
-                  <span className="text-[10px] text-stone-500">Today: {s.todayCheckinStatus}</span>
-                  {s.profilePhotoUrl && (
-                    <button
-                      onClick={() => handleDeleteStaffPhoto(s.id)}
-                      className="text-rose-400 hover:text-rose-300 flex items-center gap-1 text-[11px]"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      <span>Delete Photo</span>
-                    </button>
-                  )}
-                </div>
+                ))}
               </div>
-            ))}
+            )}
           </div>
-        </div>
-      )}
+        )}
 
-      {/* 4. AGENTS TAB */}
-      {activeTab === 'AGENTS' && (
-        <div className="space-y-6">
-          <div className="flex justify-between items-center">
-            <div>
-              <h2 className="font-serif text-2xl font-bold text-stone-100">Branch Agent Desk</h2>
-              <p className="text-xs text-stone-400">Agents are restricted to daily check-ins & photo replace for their assigned branch</p>
+        {/* ── STAFF ──────────────────────────────────────────── */}
+        {activeSection === 'STAFF' && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h1 className="text-2xl font-bold italic" style={{ fontFamily: 'var(--font-playfair)', color: 'var(--color-cream)' }}>Staff Roster</h1>
+              <button onClick={() => setStaffModalOpen(true)} className="btn-gold flex items-center gap-2 px-5 py-2.5 text-xs font-bold uppercase tracking-wide cursor-pointer" style={{ borderRadius: 10 }}>
+                <span style={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', gap: 6 }}><Plus className="w-3.5 h-3.5" /> Add Therapist</span>
+              </button>
             </div>
-            <button
-              onClick={() => setAgentModalOpen(true)}
-              className="inline-flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-stone-950 font-bold px-4 py-2.5 rounded-xl text-xs shadow-md shadow-amber-500/20 transition cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Create Agent Account</span>
-            </button>
-          </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {agents.map(ag => (
-              <div key={ag.id} className="bg-stone-900/60 border border-stone-800 rounded-2xl p-6 space-y-4">
-                <div className="flex justify-between items-start">
-                  <span className="text-xs font-bold text-amber-300 bg-amber-950/60 border border-amber-800/40 px-3 py-1 rounded-full flex items-center gap-1.5">
-                    <MapPin className="w-3.5 h-3.5 text-amber-400" />
-                    <span>{ag.assignedBranchName}</span>
-                  </span>
-                  <span className="text-[10px] text-emerald-400 font-semibold bg-emerald-950/60 border border-emerald-800/50 px-2 py-0.5 rounded-md">
-                    Active Agent
-                  </span>
-                </div>
-
-                <div>
-                  <h3 className="font-serif text-lg font-bold text-stone-100">{ag.fullName}</h3>
-                  <p className="text-xs text-stone-400">{ag.email}</p>
-                  {ag.phone && <p className="text-xs text-stone-500">{ag.phone}</p>}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* 5. APPOINTMENTS TAB */}
-      {activeTab === 'APPOINTMENTS' && (
-        <div className="space-y-6">
-          <h2 className="font-serif text-2xl font-bold text-stone-100">All Appointments & Bookings</h2>
-
-          <div className="bg-stone-900/60 border border-stone-800 rounded-2xl overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs text-stone-300">
-                <thead className="bg-stone-950/80 text-stone-400 uppercase tracking-wider text-[10px] border-b border-stone-800">
-                  <tr>
-                    <th className="p-4">Date & Time</th>
-                    <th className="p-4">Client</th>
-                    <th className="p-4">Branch</th>
-                    <th className="p-4">Therapist</th>
-                    <th className="p-4">Service</th>
-                    <th className="p-4">Mode</th>
-                    <th className="p-4">Price</th>
-                    <th className="p-4">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-stone-800/80">
-                  {appointments.map(a => (
-                    <tr key={a.id} className="hover:bg-stone-800/30">
-                      <td className="p-4 font-mono">{a.appointmentDate} {a.startTime.substring(0, 5)}</td>
-                      <td className="p-4 font-semibold text-stone-200">{a.clientName}</td>
-                      <td className="p-4">{a.branchName}</td>
-                      <td className="p-4">{a.staffName}</td>
-                      <td className="p-4">{a.serviceName}</td>
-                      <td className="p-4 font-bold text-amber-300">{a.paymentMode}</td>
-                      <td className="p-4 font-serif font-bold text-amber-200">₹{a.totalPrice}</td>
-                      <td className="p-4">
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-950/60 text-emerald-300 border border-emerald-800/50">
-                          {a.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 6. PAYMENTS & REVENUE TAB */}
-      {activeTab === 'PAYMENTS' && (
-        <div className="space-y-6">
-          <h2 className="font-serif text-2xl font-bold text-stone-100">Revenue & Unlock Audit Trail</h2>
-
-          <div className="bg-stone-900/60 border border-stone-800 rounded-2xl overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs text-stone-300">
-                <thead className="bg-stone-950/80 text-stone-400 uppercase tracking-wider text-[10px] border-b border-stone-800">
-                  <tr>
-                    <th className="p-4">Date</th>
-                    <th className="p-4">Client</th>
-                    <th className="p-4">Type</th>
-                    <th className="p-4">Base</th>
-                    <th className="p-4">2% Tax</th>
-                    <th className="p-4">Total</th>
-                    <th className="p-4">Order ID</th>
-                    <th className="p-4">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-stone-800/80">
-                  {payments.map(p => (
-                    <tr key={p.id} className="hover:bg-stone-800/30">
-                      <td className="p-4 font-mono text-stone-400">{new Date(p.createdAt).toLocaleDateString()}</td>
-                      <td className="p-4 font-semibold text-stone-200">{p.clientName}</td>
-                      <td className="p-4">{p.paymentType === 'BRANCH_UNLOCK' ? '₹99 Branch Unlock' : 'Service Booking'}</td>
-                      <td className="p-4">₹{p.baseAmount}</td>
-                      <td className="p-4 text-stone-400">₹{p.taxAmount}</td>
-                      <td className="p-4 font-serif font-bold text-amber-300">₹{p.totalAmount}</td>
-                      <td className="p-4 font-mono text-[10px] text-stone-400">{p.razorpayOrderId || 'AT_SPA'}</td>
-                      <td className="p-4">
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-950/60 text-emerald-300 border border-emerald-800/50">
-                          {p.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* CREATE BRANCH MODAL */}
-      {branchModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-950/80 backdrop-blur-md">
-          <div className="w-full max-w-lg bg-stone-900 border border-stone-800 rounded-2xl p-6 space-y-4 max-h-[90vh] overflow-y-auto">
-            <h3 className="font-serif text-2xl font-bold text-stone-100 flex items-center gap-2">
-              <MapPin className="w-5 h-5 text-amber-400" />
-              Create Spa Branch
-            </h3>
-
-            <form onSubmit={handleCreateBranch} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-stone-300 mb-1">Branch Name *</label>
-                <input
-                  type="text"
-                  required
-                  value={branchForm.name}
-                  onChange={e => setBranchForm({ ...branchForm, name: e.target.value })}
-                  placeholder="Serene Haven — Whitefield"
-                  className="w-full bg-stone-950 border border-stone-800 rounded-xl px-3.5 py-2.5 text-xs text-stone-200"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-stone-300 mb-1">Full Street Address *</label>
-                <input
-                  type="text"
-                  required
-                  value={branchForm.address}
-                  onChange={e => setBranchForm({ ...branchForm, address: e.target.value })}
-                  placeholder="ITPL Main Road, Prestige Ozone"
-                  className="w-full bg-stone-950 border border-stone-800 rounded-xl px-3.5 py-2.5 text-xs text-stone-200"
-                />
-              </div>
-
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-stone-300 mb-1">City *</label>
-                  <input
-                    type="text"
-                    required
-                    value={branchForm.city}
-                    onChange={e => setBranchForm({ ...branchForm, city: e.target.value })}
-                    placeholder="Bangalore"
-                    className="w-full bg-stone-950 border border-stone-800 rounded-xl px-3.5 py-2.5 text-xs text-stone-200"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-stone-300 mb-1">State *</label>
-                  <input
-                    type="text"
-                    required
-                    value={branchForm.state}
-                    onChange={e => setBranchForm({ ...branchForm, state: e.target.value })}
-                    placeholder="Karnataka"
-                    className="w-full bg-stone-950 border border-stone-800 rounded-xl px-3.5 py-2.5 text-xs text-stone-200"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-stone-300 mb-1">Pincode *</label>
-                  <input
-                    type="text"
-                    required
-                    value={branchForm.pincode}
-                    onChange={e => setBranchForm({ ...branchForm, pincode: e.target.value })}
-                    placeholder="560066"
-                    className="w-full bg-stone-950 border border-stone-800 rounded-xl px-3.5 py-2.5 text-xs text-stone-200"
-                  />
-                </div>
-              </div>
-
-              {/* Geo-location fields (Mandatory) */}
-              <div className="p-4 bg-stone-950/80 border border-stone-800 rounded-xl space-y-3">
-                <div className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
-                  <MapPin className="w-4 h-4 text-amber-400" />
-                  <span>Mandatory Geo-Location (Latitude & Longitude)</span>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[11px] text-stone-400 mb-1">Latitude *</label>
-                    <input
-                      type="number"
-                      step="any"
-                      required
-                      value={branchForm.latitude}
-                      onChange={e => setBranchForm({ ...branchForm, latitude: e.target.value })}
-                      placeholder="12.9698"
-                      className="w-full bg-stone-900 border border-stone-700 rounded-lg px-3 py-2 text-xs text-stone-200"
-                    />
+            {loading ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">{[1,2,3].map(i => <div key={i} className="h-40 rounded-2xl bg-white/5 animate-pulse" />)}</div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                {staff.map(s => (
+                  <div key={s.id} className="glass-card p-5 space-y-4" style={{ borderRadius: 18 }}>
+                    <div className="flex items-center gap-4">
+                      <div className="w-14 h-14 rounded-full overflow-hidden shrink-0 flex items-center justify-center font-bold text-lg" style={{ background: 'rgba(255,255,255,0.08)', color: 'var(--color-gold)' }}>
+                        {s.profilePhotoUrl
+                          ? <img src={s.profilePhotoUrl} alt={s.name} className="w-full h-full object-cover" /> // eslint-disable-line @next/next/no-img-element
+                          : s.name[0]
+                        }
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-bold text-sm" style={{ fontFamily: 'var(--font-playfair)', color: 'var(--color-cream)' }}>{s.name}</div>
+                        <div className="text-xs mt-0.5" style={{ color: 'var(--color-muted)' }}>{s.specializations?.join(', ')}</div>
+                        <div className="mt-1.5">
+                          {s.presentToday
+                            ? <span className="badge-jade"><span className="presence-dot-present" /> Present</span>
+                            : <span className="badge-rose"><XCircle className="w-3 h-3" /> On Leave</span>
+                          }
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between pt-1" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                      <span className="text-xs" style={{ color: 'var(--color-muted)' }}>{branches.find(b => b.id === s.branchId)?.name || 'No Branch'}</span>
+                      {s.profilePhotoUrl && (
+                        <button
+                          onClick={() => handleDeleteStaffPhoto(s.id)}
+                          className="flex items-center gap-1 text-xs cursor-pointer transition-colors duration-200"
+                          style={{ color: 'var(--color-rose-soft)' }}
+                          title="Delete profile photo"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" /> Photo
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-[11px] text-stone-400 mb-1">Longitude *</label>
-                    <input
-                      type="number"
-                      step="any"
-                      required
-                      value={branchForm.longitude}
-                      onChange={e => setBranchForm({ ...branchForm, longitude: e.target.value })}
-                      placeholder="77.7499"
-                      className="w-full bg-stone-900 border border-stone-700 rounded-lg px-3 py-2 text-xs text-stone-200"
-                    />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── AGENTS ─────────────────────────────────────────── */}
+        {activeSection === 'AGENTS' && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h1 className="text-2xl font-bold italic" style={{ fontFamily: 'var(--font-playfair)', color: 'var(--color-cream)' }}>Branch Agents</h1>
+              <button onClick={() => setAgentModalOpen(true)} className="btn-gold flex items-center gap-2 px-5 py-2.5 text-xs font-bold uppercase tracking-wide cursor-pointer" style={{ borderRadius: 10 }}>
+                <span style={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', gap: 6 }}><Plus className="w-3.5 h-3.5" /> Create Agent</span>
+              </button>
+            </div>
+
+            {loading ? (
+              <div className="space-y-3">{[1,2,3].map(i => <div key={i} className="h-16 rounded-xl bg-white/5 animate-pulse" />)}</div>
+            ) : (
+              <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
+                {agents.length === 0 ? (
+                  <div className="text-center py-12" style={{ color: 'var(--color-muted)' }}>No agents yet. Create your first agent above.</div>
+                ) : agents.map((a, i) => (
+                  <div
+                    key={a.id}
+                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-5 py-4"
+                    style={{ borderBottom: i < agents.length - 1 ? '1px solid rgba(255,255,255,0.06)' : 'none', background: i % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent' }}
+                  >
+                    <div>
+                      <div className="font-semibold text-sm" style={{ color: 'var(--color-cream)' }}>{a.fullName}</div>
+                      <div className="text-xs mt-0.5" style={{ color: 'var(--color-muted)' }}>{a.email} {a.phone ? `· ${a.phone}` : ''}</div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs" style={{ color: 'var(--color-parchment)' }}>{a.assignedBranchName}</span>
+                      <span className="text-[10px] px-2 py-1 rounded-full font-bold" style={{ background: 'rgba(96,165,250,0.1)', border: '1px solid rgba(96,165,250,0.25)', color: '#60a5fa' }}>AGENT</span>
+                    </div>
                   </div>
-                </div>
+                ))}
               </div>
-
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setBranchModalOpen(false)}
-                  className="flex-1 bg-stone-800 hover:bg-stone-700 text-stone-300 font-semibold py-2.5 rounded-xl text-xs transition"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 bg-amber-500 hover:bg-amber-600 text-stone-950 font-bold py-2.5 rounded-xl text-xs transition cursor-pointer"
-                >
-                  Create Branch
-                </button>
-              </div>
-            </form>
+            )}
           </div>
-        </div>
-      )}
+        )}
 
-      {/* CREATE STAFF MODAL */}
-      {staffModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-950/80 backdrop-blur-md">
-          <div className="w-full max-w-md bg-stone-900 border border-stone-800 rounded-2xl p-6 space-y-4">
-            <h3 className="font-serif text-2xl font-bold text-stone-100">Add Therapist</h3>
-
-            <form onSubmit={handleCreateStaff} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-stone-300 mb-1">Assigned Branch *</label>
-                <select
-                  value={staffForm.branchId}
-                  onChange={e => setStaffForm({ ...staffForm, branchId: e.target.value })}
-                  className="w-full bg-stone-950 border border-stone-800 rounded-xl px-3.5 py-2.5 text-xs text-stone-200"
-                >
-                  {branches.map(b => (
-                    <option key={b.id} value={b.id}>{b.name} ({b.city})</option>
-                  ))}
-                </select>
+        {/* ── APPOINTMENTS ──────────────────────────────────── */}
+        {activeSection === 'APPOINTMENTS' && (
+          <div className="space-y-6">
+            <h1 className="text-2xl font-bold italic" style={{ fontFamily: 'var(--font-playfair)', color: 'var(--color-cream)' }}>All Appointments</h1>
+            {loading ? (
+              <div className="space-y-3">{[1,2,3].map(i => <div key={i} className="h-16 rounded-xl bg-white/5 animate-pulse" />)}</div>
+            ) : (
+              <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
+                {appointments.length === 0 ? (
+                  <div className="text-center py-12" style={{ color: 'var(--color-muted)' }}>No appointments yet.</div>
+                ) : appointments.map((a, i) => (
+                  <div
+                    key={a.id}
+                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-5 py-4"
+                    style={{ borderBottom: i < appointments.length - 1 ? '1px solid rgba(255,255,255,0.06)' : 'none', background: i % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent' }}
+                  >
+                    <div>
+                      <div className="font-semibold text-sm" style={{ color: 'var(--color-cream)' }}>{a.serviceName}</div>
+                      <div className="text-xs mt-0.5" style={{ color: 'var(--color-muted)' }}>{a.clientName} · {a.staffName} · {a.branchName}</div>
+                      <div className="text-xs" style={{ color: 'var(--color-muted)' }}>{a.appointmentDate} at {a.startTime?.substring(0, 5)}</div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className={a.status === 'CONFIRMED' ? 'badge-jade' : a.status === 'CANCELLED' ? 'badge-rose' : 'badge-gold'}>
+                        {a.status === 'CONFIRMED' ? <CheckCircle2 className="w-3 h-3" /> : a.status === 'CANCELLED' ? <XCircle className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
+                        {a.status}
+                      </span>
+                      <span className="font-bold text-sm" style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-gold-light)' }}>₹{a.totalPrice}</span>
+                    </div>
+                  </div>
+                ))}
               </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-stone-300 mb-1">Therapist Name *</label>
-                <input
-                  type="text"
-                  required
-                  value={staffForm.name}
-                  onChange={e => setStaffForm({ ...staffForm, name: e.target.value })}
-                  placeholder="Kavitha Nair"
-                  className="w-full bg-stone-950 border border-stone-800 rounded-xl px-3.5 py-2.5 text-xs text-stone-200"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-stone-300 mb-1">Specialization *</label>
-                <input
-                  type="text"
-                  required
-                  value={staffForm.specialization}
-                  onChange={e => setStaffForm({ ...staffForm, specialization: e.target.value })}
-                  placeholder="Deep Tissue & Hot Stone Therapy"
-                  className="w-full bg-stone-950 border border-stone-800 rounded-xl px-3.5 py-2.5 text-xs text-stone-200"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-stone-300 mb-1">Profile Photo URL</label>
-                <input
-                  type="url"
-                  value={staffForm.profilePhotoUrl}
-                  onChange={e => setStaffForm({ ...staffForm, profilePhotoUrl: e.target.value })}
-                  placeholder="https://images.unsplash.com/..."
-                  className="w-full bg-stone-950 border border-stone-800 rounded-xl px-3.5 py-2.5 text-xs text-stone-200"
-                />
-              </div>
-
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setStaffModalOpen(false)}
-                  className="flex-1 bg-stone-800 hover:bg-stone-700 text-stone-300 font-semibold py-2.5 rounded-xl text-xs transition"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 bg-amber-500 hover:bg-amber-600 text-stone-950 font-bold py-2.5 rounded-xl text-xs transition cursor-pointer"
-                >
-                  Save Therapist
-                </button>
-              </div>
-            </form>
+            )}
           </div>
-        </div>
-      )}
+        )}
 
-      {/* CREATE AGENT MODAL */}
-      {agentModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-950/80 backdrop-blur-md">
-          <div className="w-full max-w-md bg-stone-900 border border-stone-800 rounded-2xl p-6 space-y-4">
-            <h3 className="font-serif text-2xl font-bold text-stone-100">Create Agent Account</h3>
-
-            <form onSubmit={handleCreateAgent} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-stone-300 mb-1">Assigned Branch *</label>
-                <select
-                  value={agentForm.assignedBranchId}
-                  onChange={e => setAgentForm({ ...agentForm, assignedBranchId: e.target.value })}
-                  className="w-full bg-stone-950 border border-stone-800 rounded-xl px-3.5 py-2.5 text-xs text-stone-200"
-                >
-                  {branches.map(b => (
-                    <option key={b.id} value={b.id}>{b.name} ({b.city})</option>
-                  ))}
-                </select>
+        {/* ── PAYMENTS ─────────────────────────────────────── */}
+        {activeSection === 'PAYMENTS' && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <h1 className="text-2xl font-bold italic" style={{ fontFamily: 'var(--font-playfair)', color: 'var(--color-cream)' }}>Revenue & Payments</h1>
+              <div
+                className="px-4 py-2 rounded-xl text-sm font-bold"
+                style={{ background: 'rgba(212,175,55,0.08)', border: '1px solid rgba(212,175,55,0.2)', color: 'var(--color-gold-light)', fontFamily: 'var(--font-mono)' }}
+              >
+                Total: ₹{totalRevenue.toLocaleString()}
               </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-stone-300 mb-1">Agent Full Name *</label>
-                <input
-                  type="text"
-                  required
-                  value={agentForm.fullName}
-                  onChange={e => setAgentForm({ ...agentForm, fullName: e.target.value })}
-                  placeholder="Pooja Verma"
-                  className="w-full bg-stone-950 border border-stone-800 rounded-xl px-3.5 py-2.5 text-xs text-stone-200"
-                />
+            </div>
+            {loading ? (
+              <div className="space-y-3">{[1,2,3].map(i => <div key={i} className="h-14 rounded-xl bg-white/5 animate-pulse" />)}</div>
+            ) : (
+              <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
+                {payments.length === 0 ? (
+                  <div className="text-center py-12" style={{ color: 'var(--color-muted)' }}>No payments yet.</div>
+                ) : payments.map((p, i) => (
+                  <div
+                    key={p.id || i}
+                    className="flex items-center justify-between px-5 py-4"
+                    style={{ borderBottom: i < payments.length - 1 ? '1px solid rgba(255,255,255,0.06)' : 'none', background: i % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent' }}
+                  >
+                    <div>
+                      <div className="text-sm font-medium" style={{ color: 'var(--color-parchment)' }}>{p.description || p.paymentType}</div>
+                      <div className="text-xs mt-0.5" style={{ color: 'var(--color-muted)' }}>{p.clientName} · {p.createdAt ? new Date(p.createdAt).toLocaleDateString('en-IN') : '—'}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-bold" style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-gold-light)' }}>₹{p.totalAmount}</div>
+                      <div className="text-[10px] mt-0.5" style={{ color: p.status === 'COMPLETED' ? 'var(--color-jade)' : 'var(--color-muted)' }}>{p.status}</div>
+                    </div>
+                  </div>
+                ))}
               </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-stone-300 mb-1">Agent Email *</label>
-                <input
-                  type="email"
-                  required
-                  value={agentForm.email}
-                  onChange={e => setAgentForm({ ...agentForm, email: e.target.value })}
-                  placeholder="agent.whitefield@serenehaven.com"
-                  className="w-full bg-stone-950 border border-stone-800 rounded-xl px-3.5 py-2.5 text-xs text-stone-200"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-stone-300 mb-1">Initial Password *</label>
-                <input
-                  type="password"
-                  required
-                  minLength={6}
-                  value={agentForm.password}
-                  onChange={e => setAgentForm({ ...agentForm, password: e.target.value })}
-                  placeholder="••••••••"
-                  className="w-full bg-stone-950 border border-stone-800 rounded-xl px-3.5 py-2.5 text-xs text-stone-200"
-                />
-              </div>
-
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setAgentModalOpen(false)}
-                  className="flex-1 bg-stone-800 hover:bg-stone-700 text-stone-300 font-semibold py-2.5 rounded-xl text-xs transition"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 bg-amber-500 hover:bg-amber-600 text-stone-950 font-bold py-2.5 rounded-xl text-xs transition cursor-pointer"
-                >
-                  Create Agent
-                </button>
-              </div>
-            </form>
+            )}
           </div>
-        </div>
-      )}
+        )}
+      </main>
 
+      {/* ══ CREATE BRANCH MODAL ══════════════════════════════ */}
+      <FormModal title="Create New Branch" isOpen={branchModalOpen} onClose={() => setBranchModalOpen(false)}>
+        <form onSubmit={handleCreateBranch} className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <InputField label="Branch Name" required placeholder="Indiranagar Spa" value={branchForm.name} onChange={e => setBranchForm(p => ({ ...p, name: e.target.value }))} />
+            <InputField label="Phone" placeholder="+91 80 1234 5678" value={branchForm.phone} onChange={e => setBranchForm(p => ({ ...p, phone: e.target.value }))} />
+          </div>
+          <InputField label="Address" required placeholder="100, 12th Main, Indiranagar" value={branchForm.address} onChange={e => setBranchForm(p => ({ ...p, address: e.target.value }))} />
+          <div className="grid grid-cols-3 gap-3">
+            <InputField label="City" required placeholder="Bangalore" value={branchForm.city} onChange={e => setBranchForm(p => ({ ...p, city: e.target.value }))} />
+            <InputField label="State" required placeholder="Karnataka" value={branchForm.state} onChange={e => setBranchForm(p => ({ ...p, state: e.target.value }))} />
+            <InputField label="Pincode" required placeholder="560038" value={branchForm.pincode} onChange={e => setBranchForm(p => ({ ...p, pincode: e.target.value }))} />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <InputField label="Latitude (GPS)" required type="number" step="any" placeholder="12.9716" value={branchForm.latitude} onChange={e => setBranchForm(p => ({ ...p, latitude: e.target.value }))} />
+            <InputField label="Longitude (GPS)" required type="number" step="any" placeholder="77.5946" value={branchForm.longitude} onChange={e => setBranchForm(p => ({ ...p, longitude: e.target.value }))} />
+          </div>
+          <InputField label="Google Maps URL" placeholder="https://maps.google.com/..." value={branchForm.mapsUrl} onChange={e => setBranchForm(p => ({ ...p, mapsUrl: e.target.value }))} />
+          <div className="grid grid-cols-2 gap-4">
+            <InputField label="Open Time" type="time" value={branchForm.openTime} onChange={e => setBranchForm(p => ({ ...p, openTime: e.target.value }))} />
+            <InputField label="Close Time" type="time" value={branchForm.closeTime} onChange={e => setBranchForm(p => ({ ...p, closeTime: e.target.value }))} />
+          </div>
+          <button type="submit" disabled={formLoading} className="btn-gold w-full py-3.5 text-sm font-bold uppercase tracking-wider cursor-pointer disabled:opacity-50" style={{ borderRadius: 12, marginTop: 8 }}>
+            <span style={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+              {formLoading ? <><Loader2 className="w-4 h-4 spinner" /> Creating…</> : <><Plus className="w-4 h-4" /> Create Branch</>}
+            </span>
+          </button>
+        </form>
+      </FormModal>
+
+      {/* ══ ADD STAFF MODAL ══════════════════════════════════ */}
+      <FormModal title="Add Therapist" isOpen={staffModalOpen} onClose={() => setStaffModalOpen(false)}>
+        <form onSubmit={handleCreateStaff} className="space-y-4">
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--color-parchment)' }}>Assign to Branch</label>
+            <select value={staffForm.branchId} onChange={e => setStaffForm(p => ({ ...p, branchId: e.target.value }))} style={selectStyle}>
+              {branches.map(b => <option key={b.id} value={b.id}>{b.name} — {b.city}</option>)}
+            </select>
+          </div>
+          <InputField label="Therapist Name" required placeholder="Ananya Sharma" value={staffForm.name} onChange={e => setStaffForm(p => ({ ...p, name: e.target.value }))} />
+          <InputField label="Specialization" placeholder="Deep Tissue, Aromatherapy" value={staffForm.specialization} onChange={e => setStaffForm(p => ({ ...p, specialization: e.target.value }))} />
+          <InputField label="Profile Photo URL" placeholder="https://cloudinary.com/..." value={staffForm.profilePhotoUrl} onChange={e => setStaffForm(p => ({ ...p, profilePhotoUrl: e.target.value }))} />
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--color-parchment)' }}>Short Bio</label>
+            <textarea
+              value={staffForm.bio}
+              onChange={e => setStaffForm(p => ({ ...p, bio: e.target.value }))}
+              placeholder="10+ years specializing in therapeutic deep tissue and hot stone massage…"
+              rows={3}
+              style={{ ...selectStyle, resize: 'vertical' }}
+            />
+          </div>
+          <button type="submit" disabled={formLoading} className="btn-gold w-full py-3.5 text-sm font-bold uppercase tracking-wider cursor-pointer disabled:opacity-50" style={{ borderRadius: 12 }}>
+            <span style={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+              {formLoading ? <><Loader2 className="w-4 h-4 spinner" /> Adding…</> : <><Plus className="w-4 h-4" /> Add Therapist</>}
+            </span>
+          </button>
+        </form>
+      </FormModal>
+
+      {/* ══ CREATE AGENT MODAL ════════════════════════════════ */}
+      <FormModal title="Create Agent Account" isOpen={agentModalOpen} onClose={() => setAgentModalOpen(false)}>
+        <form onSubmit={handleCreateAgent} className="space-y-4">
+          <InputField label="Full Name" required placeholder="Ravi Kumar" value={agentForm.fullName} onChange={e => setAgentForm(p => ({ ...p, fullName: e.target.value }))} />
+          <InputField label="Email Address" type="email" required placeholder="agent@serenehaven.com" value={agentForm.email} onChange={e => setAgentForm(p => ({ ...p, email: e.target.value }))} />
+          <InputField label="Phone" placeholder="+91 9876543210" value={agentForm.phone} onChange={e => setAgentForm(p => ({ ...p, phone: e.target.value }))} />
+          <InputField label="Password" type="password" required minLength={6} placeholder="••••••••" value={agentForm.password} onChange={e => setAgentForm(p => ({ ...p, password: e.target.value }))} />
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--color-parchment)' }}>Assign to Branch</label>
+            <select value={agentForm.assignedBranchId} onChange={e => setAgentForm(p => ({ ...p, assignedBranchId: e.target.value }))} style={selectStyle}>
+              {branches.map(b => <option key={b.id} value={b.id}>{b.name} — {b.city}</option>)}
+            </select>
+          </div>
+          <div className="p-3 rounded-xl text-xs" style={{ background: 'rgba(212,175,55,0.06)', border: '1px solid rgba(212,175,55,0.15)', color: 'var(--color-muted)' }}>
+            <strong style={{ color: 'var(--color-gold-light)' }}>Agent Permissions:</strong> Can only toggle staff PRESENT / ON_LEAVE for today. Cannot create branches, manage payments, or view client data.
+          </div>
+          <button type="submit" disabled={formLoading} className="btn-gold w-full py-3.5 text-sm font-bold uppercase tracking-wider cursor-pointer disabled:opacity-50" style={{ borderRadius: 12 }}>
+            <span style={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+              {formLoading ? <><Loader2 className="w-4 h-4 spinner" /> Creating…</> : <><UserCheck className="w-4 h-4" /> Create Agent Account</>}
+            </span>
+          </button>
+        </form>
+      </FormModal>
     </div>
   );
 }

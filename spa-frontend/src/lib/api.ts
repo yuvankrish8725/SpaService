@@ -58,9 +58,11 @@ export interface StaffCardResponse {
   branchName: string;
   name: string;
   specialization: string;
+  specializations?: string[];
   bio?: string;
   profilePhotoUrl?: string;
   todayCheckinStatus: 'PRESENT' | 'ON_LEAVE' | 'NOT_CONFIRMED_YET';
+  presentToday: boolean; // true when todayCheckinStatus === 'PRESENT'
   checkinConfirmedAt?: string;
   isBookable: boolean;
   isActive: boolean;
@@ -143,6 +145,7 @@ export interface PaymentSummaryDto {
   status: 'PENDING' | 'COMPLETED' | 'FAILED';
   razorpayOrderId?: string;
   razorpayPaymentId?: string;
+  description?: string;
   createdAt: string;
 }
 

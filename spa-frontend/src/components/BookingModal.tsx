@@ -3,8 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth';
 import { apiFetch, SpaServiceResponse, StaffCardResponse, TimeSlotDto, AppointmentResponse, PaymentOrderResponse } from '@/lib/api';
-import { Calendar, Clock, Sparkles, MapPin, User, CheckCircle2, AlertCircle, CreditCard, Banknote, X, ArrowRight, Loader2 } from 'lucide-react';
-import Image from 'next/image';
+import { Calendar, Clock, MapPin, CheckCircle2, AlertCircle, CreditCard, Banknote, X, ArrowRight, Loader2, User } from 'lucide-react';
 
 interface BookingModalProps {
   isOpen: boolean;
@@ -12,9 +11,30 @@ interface BookingModalProps {
   branchId: string;
   branchName: string;
   branchCity?: string;
+  preselectedStaff?: StaffCardResponse | null;
+  preselectedService?: SpaServiceResponse | null;
   initialStaff?: StaffCardResponse | null;
   initialService?: SpaServiceResponse | null;
   onBookingSuccess?: () => void;
+}
+
+/* ── Step dots indicator ─────────────────────────────────── */
+function StepDots({ current, total }: { current: number; total: number }) {
+  return (
+    <div className="flex items-center justify-center gap-2 mb-6">
+      {Array.from({ length: total }).map((_, i) => (
+        <div
+          key={i}
+          className="rounded-full transition-all duration-300"
+          style={{
+            width: i === current ? 20 : 8,
+            height: 8,
+            background: i <= current ? 'var(--color-gold)' : 'rgba(255,255,255,0.12)',
+          }}
+        />
+      ))}
+    </div>
+  );
 }
 
 export default function BookingModal({
@@ -23,16 +43,21 @@ export default function BookingModal({
   branchId,
   branchName,
   branchCity,
+  preselectedStaff,
+  preselectedService,
   initialStaff,
   initialService,
   onBookingSuccess,
 }: BookingModalProps) {
   const { user, isBranchUnlocked } = useAuth();
 
+  const effectiveInitialStaff = preselectedStaff || initialStaff;
+  const effectiveInitialService = preselectedService || initialService;
+
   const [services, setServices] = useState<SpaServiceResponse[]>([]);
   const [staffList, setStaffList] = useState<StaffCardResponse[]>([]);
-  const [selectedServiceId, setSelectedServiceId] = useState<string>(initialService?.id || '');
-  const [selectedStaffId, setSelectedStaffId] = useState<string>(initialStaff?.id || '');
+  const [selectedServiceId, setSelectedServiceId] = useState<string>(effectiveInitialService?.id || '');
+  const [selectedStaffId, setSelectedStaffId] = useState<string>(effectiveInitialStaff?.id || '');
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [timeSlots, setTimeSlots] = useState<TimeSlotDto[]>([]);
   const [selectedSlot, setSelectedSlot] = useState<string>('');
@@ -45,100 +70,64 @@ export default function BookingModal({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [confirmedBooking, setConfirmedBooking] = useState<AppointmentResponse | null>(null);
 
-  // Load available services & staff for this branch
   useEffect(() => {
-    if (isOpen && branchId) {
-      // 1. Fetch branch services
-      apiFetch<SpaServiceResponse[]>(`/branches/${branchId}/services`)
+    if (!isOpen || !branchId) return;
+    apiFetch<SpaServiceResponse[]>(`/branches/${branchId}/services`)
+      .then(data => {
+        setServices(data);
+        if (!selectedServiceId && data.length > 0) setSelectedServiceId(effectiveInitialService?.id || data[0].id);
+      }).catch(console.error);
+
+    if (user && isBranchUnlocked(branchId)) {
+      apiFetch<StaffCardResponse[]>(`/branches/${branchId}/staff`)
         .then(data => {
-          setServices(data);
-          if (!selectedServiceId && data.length > 0) {
-            setSelectedServiceId(initialService?.id || data[0].id);
-          }
-        })
-        .catch(console.error);
-
-      // 2. Fetch staff if unlocked
-      if (user && isBranchUnlocked(branchId)) {
-        apiFetch<StaffCardResponse[]>(`/branches/${branchId}/staff`)
-          .then(data => {
-            setStaffList(data);
-            if (!selectedStaffId && data.length > 0) {
-              setSelectedStaffId(initialStaff?.id || data[0].id);
-            }
-          })
-          .catch(console.error);
-      }
+          setStaffList(data);
+          if (!selectedStaffId && data.length > 0) setSelectedStaffId(effectiveInitialStaff?.id || data[0].id);
+        }).catch(console.error);
     }
-  }, [isOpen, branchId, user, isBranchUnlocked, initialService, initialStaff, selectedServiceId, selectedStaffId]);
+  }, [isOpen, branchId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Load time slots when service, staff, and date are selected
   useEffect(() => {
-    if (branchId && selectedStaffId && selectedServiceId && selectedDate && user && isBranchUnlocked(branchId)) {
-      setSlotsLoading(true);
-      apiFetch<TimeSlotDto[]>(`/appointments/slots?branchId=${branchId}&staffId=${selectedStaffId}&serviceId=${selectedServiceId}&date=${selectedDate}`)
-        .then(slots => {
-          setTimeSlots(slots);
-          const firstAvailable = slots.find(s => s.isAvailable);
-          if (firstAvailable) {
-            setSelectedSlot(firstAvailable.startTime);
-          } else {
-            setSelectedSlot('');
-          }
-        })
-        .catch(console.error)
-        .finally(() => setSlotsLoading(false));
-    }
-  }, [branchId, selectedStaffId, selectedServiceId, selectedDate, user, isBranchUnlocked]);
+    if (!branchId || !selectedStaffId || !selectedServiceId || !selectedDate || !user || !isBranchUnlocked(branchId)) return;
+    setSlotsLoading(true);
+    apiFetch<TimeSlotDto[]>(`/appointments/slots?branchId=${branchId}&staffId=${selectedStaffId}&serviceId=${selectedServiceId}&date=${selectedDate}`)
+      .then(slots => {
+        setTimeSlots(slots);
+        const first = slots.find(s => s.isAvailable);
+        setSelectedSlot(first?.startTime || '');
+      }).catch(console.error).finally(() => setSlotsLoading(false));
+  }, [branchId, selectedStaffId, selectedServiceId, selectedDate]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!isOpen) return null;
 
-  const selectedService = services.find(s => s.id === selectedServiceId) || initialService;
-  const selectedStaff = staffList.find(s => s.id === selectedStaffId) || initialStaff;
-
+  const selectedService = services.find(s => s.id === selectedServiceId) || effectiveInitialService;
   const basePrice = selectedService ? Number(selectedService.price) : 0;
   const taxAmount = paymentMode === 'ONLINE' ? Number((basePrice * 0.02).toFixed(2)) : 0;
   const totalPrice = Number((basePrice + taxAmount).toFixed(2));
 
   const handleBookingSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) {
-      window.location.href = `/auth/login?redirect=/branches/${branchId}`;
-      return;
-    }
-
-    if (!selectedSlot) {
-      setErrorMsg('Please select an available time slot');
-      return;
-    }
+    if (!user) { window.location.href = '/auth/login'; return; }
+    if (!selectedSlot) { setErrorMsg('Please select an available time slot'); return; }
 
     setLoading(true);
     setErrorMsg(null);
 
     try {
-      // 1. Create Appointment
       const appointment = await apiFetch<AppointmentResponse>('/appointments', {
         method: 'POST',
         body: JSON.stringify({
-          branchId,
-          staffId: selectedStaffId,
-          serviceId: selectedServiceId,
-          appointmentDate: selectedDate,
-          startTime: selectedSlot,
-          paymentMode,
-          notes,
+          branchId, staffId: selectedStaffId, serviceId: selectedServiceId,
+          appointmentDate: selectedDate, startTime: selectedSlot, paymentMode, notes,
         }),
       });
 
       if (paymentMode === 'ONLINE') {
         setStep('PAYING');
-        // Initiate Online Payment with 2% tax
         const order = await apiFetch<PaymentOrderResponse>('/payments/booking/initiate', {
           method: 'POST',
           body: JSON.stringify({ appointmentId: appointment.id }),
         });
-
-        // Simulate Razorpay verify callback
         setTimeout(async () => {
           try {
             await apiFetch<void>('/payments/booking/verify', {
@@ -150,354 +139,380 @@ export default function BookingModal({
                 razorpaySignature: 'sig_' + Math.random().toString(36).substring(2, 16),
               }),
             });
-
             setConfirmedBooking(appointment);
             setStep('SUCCESS');
             setLoading(false);
-            if (onBookingSuccess) onBookingSuccess();
-          } catch (err: any) {
-            setErrorMsg(err.message || 'Payment verification failed');
-            setStep('FORM');
-            setLoading(false);
+            onBookingSuccess?.();
+          } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : 'Payment verification failed';
+            setErrorMsg(msg); setStep('FORM'); setLoading(false);
           }
-        }, 1500);
-
+        }, 1600);
       } else {
-        // At-Spa mode: confirmed immediately
         setConfirmedBooking(appointment);
         setStep('SUCCESS');
         setLoading(false);
-        if (onBookingSuccess) onBookingSuccess();
+        onBookingSuccess?.();
       }
-
-    } catch (err: any) {
-      setErrorMsg(err.message || 'Failed to complete booking');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to complete booking';
+      setErrorMsg(msg);
       setLoading(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-950/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative w-full max-w-2xl bg-stone-900 border border-stone-800 rounded-2xl p-6 md:p-8 shadow-2xl text-stone-100 max-h-[90vh] overflow-y-auto">
-        
-        {/* Close Button */}
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: 'rgba(0,0,0,0.78)', backdropFilter: 'blur(6px)' }}
+    >
+      <div
+        className="modal-enter relative w-full max-w-2xl max-h-[92vh] overflow-y-auto"
+        style={{
+          background: 'rgba(14,12,8,0.97)',
+          border: '1px solid rgba(212,175,55,0.18)',
+          borderRadius: 24,
+          boxShadow: '0 32px 80px -16px rgba(0,0,0,0.8)',
+        }}
+      >
+        {/* Gold ambient glow */}
+        <div
+          className="absolute -top-16 left-1/2 -translate-x-1/2 w-80 h-32 pointer-events-none"
+          style={{ background: 'radial-gradient(ellipse, rgba(212,175,55,0.1) 0%, transparent 70%)', filter: 'blur(20px)' }}
+        />
+
+        {/* Close */}
         <button
           onClick={onClose}
           disabled={loading}
-          className="absolute top-4 right-4 p-2 text-stone-400 hover:text-stone-200 hover:bg-stone-800 rounded-full transition"
+          className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full cursor-pointer transition-all duration-200 z-10"
+          style={{ background: 'rgba(255,255,255,0.06)', color: 'var(--color-muted)' }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.1)'; (e.currentTarget as HTMLElement).style.color = 'var(--color-cream)'; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.06)'; (e.currentTarget as HTMLElement).style.color = 'var(--color-muted)'; }}
         >
-          <X className="w-5 h-5" />
+          <X className="w-4 h-4" />
         </button>
 
-        {step === 'FORM' && (
-          <form onSubmit={handleBookingSubmit} className="space-y-6">
-            
-            {/* Header */}
-            <div>
-              <h3 className="font-serif text-2xl font-bold text-amber-100 flex items-center gap-2">
-                <Sparkles className="w-5 h-5 text-amber-400" />
-                Reserve Your Spa Session
-              </h3>
-              <div className="flex items-center gap-2 text-xs text-amber-300/80 mt-1">
-                <MapPin className="w-3.5 h-3.5" />
-                <span>{branchName} {branchCity ? `— ${branchCity}` : ''}</span>
-              </div>
-            </div>
+        <div className="relative p-8">
 
-            {errorMsg && (
-              <div className="p-3 rounded-lg bg-rose-950/50 border border-rose-800 text-rose-300 text-xs flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                <span>{errorMsg}</span>
-              </div>
-            )}
+          {/* ── STEP: FORM ─────────────────────────────── */}
+          {step === 'FORM' && (
+            <form onSubmit={handleBookingSubmit} className="space-y-7">
+              <StepDots current={0} total={3} />
 
-            {/* Select Service */}
-            <div>
-              <label className="block text-xs font-semibold text-stone-300 uppercase tracking-wider mb-2">
-                1. Select Treatment / Service
-              </label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-40 overflow-y-auto pr-1">
-                {services.map(svc => (
-                  <button
-                    type="button"
-                    key={svc.id}
-                    onClick={() => setSelectedServiceId(svc.id)}
-                    className={`text-left p-3 rounded-xl border transition ${
-                      selectedServiceId === svc.id
-                        ? 'border-amber-500 bg-amber-950/30 text-amber-100'
-                        : 'border-stone-800 bg-stone-950/50 text-stone-300 hover:border-stone-700'
-                    }`}
-                  >
-                    <div className="font-semibold text-xs">{svc.name}</div>
-                    <div className="flex justify-between items-center text-[11px] text-stone-400 mt-1">
-                      <span>{svc.durationMinutes} mins</span>
-                      <span className="font-bold text-amber-300">₹{svc.price}</span>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Select Therapist */}
-            <div>
-              <label className="block text-xs font-semibold text-stone-300 uppercase tracking-wider mb-2">
-                2. Select Available Therapist
-              </label>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {staffList.map(st => (
-                  <button
-                    type="button"
-                    key={st.id}
-                    onClick={() => setSelectedStaffId(st.id)}
-                    className={`text-left p-3 rounded-xl border transition relative ${
-                      selectedStaffId === st.id
-                        ? 'border-amber-500 bg-amber-950/30 text-amber-100 ring-1 ring-amber-500'
-                        : 'border-stone-800 bg-stone-950/50 text-stone-300 hover:border-stone-700'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-10 h-10 rounded-full bg-stone-800 overflow-hidden shrink-0 border border-stone-700">
-                        {st.profilePhotoUrl ? (
-                          /* eslint-disable-next-line @next/next/no-img-element */
-                          <img src={st.profilePhotoUrl} alt={st.name} className="w-full h-full object-cover" />
-                        ) : (
-                          <User className="w-5 h-5 text-stone-500 m-2.5" />
-                        )}
-                      </div>
-                      <div className="min-w-0">
-                        <div className="font-semibold text-xs truncate">{st.name}</div>
-                        <div className="text-[10px] text-stone-400 truncate">{st.specialization}</div>
-                      </div>
-                    </div>
-
-                    {/* Check-in badge */}
-                    <div className="mt-2 text-[10px] flex items-center gap-1 font-medium">
-                      {st.todayCheckinStatus === 'PRESENT' && (
-                        <span className="text-emerald-400 flex items-center gap-1">
-                          <CheckCircle2 className="w-3 h-3" /> In Today
-                        </span>
-                      )}
-                      {st.todayCheckinStatus === 'ON_LEAVE' && (
-                        <span className="text-rose-400 flex items-center gap-1">
-                          <X className="w-3 h-3" /> On Leave
-                        </span>
-                      )}
-                      {st.todayCheckinStatus === 'NOT_CONFIRMED_YET' && (
-                        <span className="text-amber-400 flex items-center gap-1">
-                          <Clock className="w-3 h-3" /> Pending
-                        </span>
-                      )}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Select Date & Time Slot */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Header */}
               <div>
-                <label className="block text-xs font-semibold text-stone-300 uppercase tracking-wider mb-2">
-                  3. Select Date
-                </label>
-                <input
-                  type="date"
-                  value={selectedDate}
-                  min={new Date().toISOString().split('T')[0]}
-                  onChange={e => setSelectedDate(e.target.value)}
-                  className="w-full bg-stone-950 border border-stone-800 rounded-xl px-3.5 py-2.5 text-xs text-stone-200 focus:outline-none focus:border-amber-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-stone-300 uppercase tracking-wider mb-2">
-                  4. Available Time Slots
-                </label>
-                {slotsLoading ? (
-                  <div className="flex items-center gap-2 text-xs text-stone-400 py-2.5">
-                    <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
-                    <span>Checking therapist availability...</span>
-                  </div>
-                ) : timeSlots.length > 0 ? (
-                  <div className="flex flex-wrap gap-2 max-h-24 overflow-y-auto pr-1">
-                    {timeSlots.map(slot => (
-                      <button
-                        type="button"
-                        key={slot.startTime}
-                        disabled={!slot.isAvailable}
-                        onClick={() => setSelectedSlot(slot.startTime)}
-                        className={`text-xs px-3 py-1.5 rounded-lg border transition ${
-                          selectedSlot === slot.startTime
-                            ? 'bg-amber-500 text-stone-950 font-bold border-amber-500 shadow-md shadow-amber-500/20'
-                            : slot.isAvailable
-                            ? 'border-stone-800 bg-stone-950 text-stone-300 hover:border-amber-500/50'
-                            : 'border-stone-900 bg-stone-950/30 text-stone-600 cursor-not-allowed line-through'
-                        }`}
-                      >
-                        {slot.startTime.substring(0, 5)}
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-xs text-stone-500 py-2.5">No slots available for this therapist on selected date.</div>
-                )}
-              </div>
-            </div>
-
-            {/* Payment Mode Selection (Online with 2% Tax OR Pay-at-Spa) */}
-            <div>
-              <label className="block text-xs font-semibold text-stone-300 uppercase tracking-wider mb-2">
-                5. Payment Preference
-              </label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => setPaymentMode('ONLINE')}
-                  className={`p-3.5 rounded-xl border text-left transition ${
-                    paymentMode === 'ONLINE'
-                      ? 'border-amber-500 bg-amber-950/30 text-amber-100 ring-1 ring-amber-500'
-                      : 'border-stone-800 bg-stone-950/50 text-stone-400 hover:border-stone-700'
-                  }`}
+                <h3
+                  className="text-2xl font-bold italic mb-1"
+                  style={{ fontFamily: 'var(--font-playfair)', color: 'var(--color-cream)' }}
                 >
-                  <div className="flex items-center gap-2 text-xs font-bold text-stone-200">
-                    <CreditCard className="w-4 h-4 text-amber-400" />
-                    <span>Pay Online (Razorpay)</span>
-                  </div>
-                  <div className="text-[11px] text-stone-400 mt-1">
-                    Instant confirmation + 2% service tax (₹{((basePrice * 0.02) || 0).toFixed(2)})
-                  </div>
-                </button>
+                  Reserve Your Session
+                </h3>
+                <div className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--color-muted)' }}>
+                  <MapPin className="w-3.5 h-3.5" style={{ color: 'var(--color-gold)' }} />
+                  {branchName}{branchCity ? ` · ${branchCity}` : ''}
+                </div>
+              </div>
 
-                <button
-                  type="button"
-                  onClick={() => setPaymentMode('AT_SPA')}
-                  className={`p-3.5 rounded-xl border text-left transition ${
-                    paymentMode === 'AT_SPA'
-                      ? 'border-amber-500 bg-amber-950/30 text-amber-100 ring-1 ring-amber-500'
-                      : 'border-stone-800 bg-stone-950/50 text-stone-400 hover:border-stone-700'
-                  }`}
+              {/* Error */}
+              {errorMsg && (
+                <div
+                  className="flex items-center gap-2.5 p-3.5 rounded-xl text-sm"
+                  style={{ background: 'rgba(251,113,133,0.08)', border: '1px solid rgba(251,113,133,0.2)', color: '#fb7185' }}
                 >
-                  <div className="flex items-center gap-2 text-xs font-bold text-stone-200">
-                    <Banknote className="w-4 h-4 text-emerald-400" />
-                    <span>Pay at Reception (At Spa)</span>
-                  </div>
-                  <div className="text-[11px] text-stone-400 mt-1">
-                    Reserve slot now, pay upon arrival (No online tax)
-                  </div>
-                </button>
-              </div>
-            </div>
-
-            {/* Price Breakdown Footer */}
-            <div className="bg-stone-950/80 border border-stone-800 rounded-xl p-4 space-y-2 text-xs">
-              <div className="flex justify-between text-stone-400">
-                <span>Treatment Service Fee</span>
-                <span>₹{basePrice.toFixed(2)}</span>
-              </div>
-              {paymentMode === 'ONLINE' && (
-                <div className="flex justify-between text-stone-400">
-                  <span>Online Service Tax (2%)</span>
-                  <span>₹{taxAmount.toFixed(2)}</span>
+                  <AlertCircle className="w-4 h-4 shrink-0" />{errorMsg}
                 </div>
               )}
-              <div className="pt-2 border-t border-stone-800 flex justify-between items-baseline">
-                <span className="font-semibold text-stone-200 text-sm">
-                  {paymentMode === 'ONLINE' ? 'Total Payable Now' : 'Payable at Spa Arrival'}
-                </span>
-                <span className="font-serif text-2xl font-bold text-amber-300">
-                  ₹{totalPrice.toFixed(2)}
-                </span>
-              </div>
+
+              {/* Section label helper */}
+              {(() => {
+                const SectionLabel = ({ num, text }: { num: string; text: string }) => (
+                  <div className="flex items-center gap-2 mb-3">
+                    <span
+                      className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0"
+                      style={{ background: 'rgba(212,175,55,0.15)', color: 'var(--color-gold)', border: '1px solid rgba(212,175,55,0.3)' }}
+                    >{num}</span>
+                    <span className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--color-parchment)' }}>{text}</span>
+                  </div>
+                );
+
+                return (
+                  <>
+                    {/* 1. Select Treatment */}
+                    <div>
+                      <SectionLabel num="1" text="Select Treatment" />
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto pr-1">
+                        {services.map(svc => (
+                          <button
+                            type="button"
+                            key={svc.id}
+                            onClick={() => setSelectedServiceId(svc.id)}
+                            className="text-left p-3 rounded-xl border transition-all duration-200 cursor-pointer"
+                            style={selectedServiceId === svc.id
+                              ? { background: 'rgba(212,175,55,0.1)', border: '1px solid rgba(212,175,55,0.4)', color: 'var(--color-cream)' }
+                              : { background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', color: 'var(--color-parchment)' }
+                            }
+                          >
+                            <div className="font-semibold text-xs">{svc.name}</div>
+                            <div className="flex justify-between items-center text-[11px] mt-1" style={{ color: 'var(--color-muted)' }}>
+                              <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {svc.durationMinutes} min</span>
+                              <span className="font-bold" style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-gold-light)' }}>₹{svc.price}</span>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* 2. Select Therapist */}
+                    <div>
+                      <SectionLabel num="2" text="Select Therapist" />
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {staffList.map(st => (
+                          <button
+                            type="button"
+                            key={st.id}
+                            onClick={() => st.presentToday && setSelectedStaffId(st.id)}
+                            disabled={!st.presentToday}
+                            className="text-left p-3 rounded-xl border transition-all duration-200 cursor-pointer"
+                            style={selectedStaffId === st.id
+                              ? { background: 'rgba(212,175,55,0.1)', border: '1px solid rgba(212,175,55,0.4)', color: 'var(--color-cream)' }
+                              : !st.presentToday
+                                ? { background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', color: 'var(--color-muted)', opacity: 0.5, cursor: 'not-allowed' }
+                                : { background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', color: 'var(--color-parchment)' }
+                            }
+                          >
+                            <div className="flex items-center gap-2 mb-2">
+                              <div
+                                className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center shrink-0"
+                                style={{ background: 'rgba(255,255,255,0.08)' }}
+                              >
+                                {st.profilePhotoUrl
+                                  ? <img src={st.profilePhotoUrl} alt={st.name} className="w-full h-full object-cover" /> // eslint-disable-line @next/next/no-img-element
+                                  : <User className="w-4 h-4" style={{ color: 'var(--color-muted)' }} />
+                                }
+                              </div>
+                              <div className="min-w-0">
+                                <div className="font-semibold text-xs truncate">{st.name}</div>
+                              </div>
+                            </div>
+                            <div className="text-[10px] font-medium">
+                              {st.presentToday
+                                ? <span style={{ color: 'var(--color-jade)' }}>✓ In Today</span>
+                                : <span style={{ color: 'var(--color-rose-soft)' }}>✗ On Leave</span>
+                              }
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* 3. Date & Time */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                      <div>
+                        <SectionLabel num="3" text="Select Date" />
+                        <input
+                          type="date"
+                          value={selectedDate}
+                          min={new Date().toISOString().split('T')[0]}
+                          onChange={e => setSelectedDate(e.target.value)}
+                          className="input-glass text-sm"
+                        />
+                      </div>
+                      <div>
+                        <SectionLabel num="4" text="Time Slot" />
+                        {slotsLoading ? (
+                          <div className="flex items-center gap-2 text-xs py-3" style={{ color: 'var(--color-muted)' }}>
+                            <Loader2 className="w-4 h-4 spinner" style={{ color: 'var(--color-gold)' }} />
+                            Checking availability…
+                          </div>
+                        ) : timeSlots.length > 0 ? (
+                          <div className="flex flex-wrap gap-2 max-h-28 overflow-y-auto pr-1">
+                            {timeSlots.map(slot => (
+                              <button
+                                type="button"
+                                key={slot.startTime}
+                                disabled={!slot.isAvailable}
+                                onClick={() => setSelectedSlot(slot.startTime)}
+                                className="text-xs px-3 py-1.5 rounded-lg transition-all duration-150 cursor-pointer"
+                                style={selectedSlot === slot.startTime
+                                  ? { background: 'var(--color-gold)', color: '#0A0906', fontWeight: 700 }
+                                  : slot.isAvailable
+                                    ? { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: 'var(--color-parchment)' }
+                                    : { background: 'transparent', border: '1px solid rgba(255,255,255,0.05)', color: 'var(--color-muted)', cursor: 'not-allowed', textDecoration: 'line-through' }
+                                }
+                              >
+                                {slot.startTime.substring(0, 5)}
+                              </button>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-xs py-3" style={{ color: 'var(--color-muted)' }}>Select therapist & date first.</p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* 5. Payment Mode */}
+                    <div>
+                      <SectionLabel num="5" text="Payment Preference" />
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {[
+                          {
+                            mode: 'ONLINE' as const,
+                            icon: <CreditCard className="w-4 h-4" style={{ color: 'var(--color-gold)' }} />,
+                            title: 'Pay Online (Razorpay)',
+                            sub: `Instant confirmation · +2% tax (₹${(basePrice * 0.02).toFixed(2)})`,
+                          },
+                          {
+                            mode: 'AT_SPA' as const,
+                            icon: <Banknote className="w-4 h-4" style={{ color: 'var(--color-jade)' }} />,
+                            title: 'Pay at Reception',
+                            sub: 'Reserve now, pay on arrival · No online tax',
+                          },
+                        ].map(({ mode, icon, title, sub }) => (
+                          <button
+                            key={mode}
+                            type="button"
+                            onClick={() => setPaymentMode(mode)}
+                            className="p-4 rounded-xl text-left cursor-pointer transition-all duration-200"
+                            style={paymentMode === mode
+                              ? { background: 'rgba(212,175,55,0.08)', border: '1px solid rgba(212,175,55,0.35)', color: 'var(--color-cream)' }
+                              : { background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', color: 'var(--color-parchment)' }
+                            }
+                          >
+                            <div className="flex items-center gap-2 font-semibold text-xs mb-1">{icon}{title}</div>
+                            <div className="text-[11px]" style={{ color: 'var(--color-muted)' }}>{sub}</div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Price breakdown */}
+                    <div
+                      className="rounded-xl overflow-hidden"
+                      style={{ border: '1px solid rgba(255,255,255,0.08)' }}
+                    >
+                      <div className="px-5 py-3 flex justify-between text-sm" style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                        <span style={{ color: 'var(--color-muted)' }}>Treatment Fee</span>
+                        <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-parchment)' }}>₹{basePrice.toFixed(2)}</span>
+                      </div>
+                      {paymentMode === 'ONLINE' && (
+                        <div className="px-5 py-3 flex justify-between text-sm" style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                          <span style={{ color: 'var(--color-muted)' }}>Online Tax (2%)</span>
+                          <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-parchment)' }}>₹{taxAmount.toFixed(2)}</span>
+                        </div>
+                      )}
+                      <div className="px-5 py-4 flex justify-between items-center" style={{ background: 'rgba(212,175,55,0.05)' }}>
+                        <span className="font-bold uppercase tracking-wider text-xs" style={{ color: 'var(--color-cream)' }}>
+                          {paymentMode === 'ONLINE' ? 'Total Now' : 'Due at Spa'}
+                        </span>
+                        <span className="text-2xl font-bold" style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-gold-light)' }}>₹{totalPrice.toFixed(2)}</span>
+                      </div>
+                    </div>
+
+                    {/* Submit */}
+                    <button
+                      type="submit"
+                      disabled={loading || !selectedSlot}
+                      className="btn-gold w-full py-4 text-sm font-bold uppercase tracking-wider cursor-pointer disabled:opacity-50"
+                      style={{ borderRadius: 12 }}
+                    >
+                      <span style={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                        {loading
+                          ? <><Loader2 className="w-4 h-4 spinner" /> Processing…</>
+                          : <>{paymentMode === 'ONLINE' ? `Confirm & Pay ₹${totalPrice.toFixed(2)}` : 'Confirm Slot (Pay at Spa)'} <ArrowRight className="w-4 h-4" /></>
+                        }
+                      </span>
+                    </button>
+                  </>
+                );
+              })()}
+            </form>
+          )}
+
+          {/* ── STEP: PAYING ─────────────────────────── */}
+          {step === 'PAYING' && (
+            <div className="py-16 text-center space-y-5">
+              <StepDots current={1} total={3} />
+              <div
+                className="w-16 h-16 rounded-full mx-auto"
+                style={{ border: '2px solid rgba(212,175,55,0.2)', borderTop: '2px solid var(--color-gold)', animation: 'spin 0.8s linear infinite' }}
+              />
+              <h4 className="text-xl font-bold italic" style={{ fontFamily: 'var(--font-playfair)', color: 'var(--color-gold-light)' }}>
+                Processing Payment…
+              </h4>
+              <p className="text-sm" style={{ color: 'var(--color-muted)' }}>Securing your session for ₹{totalPrice.toFixed(2)}</p>
             </div>
+          )}
 
-            {/* Submit CTA */}
-            <button
-              type="submit"
-              disabled={loading || !selectedSlot}
-              className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-stone-950 font-bold py-3.5 rounded-xl shadow-lg shadow-amber-500/20 text-sm transition disabled:opacity-50 cursor-pointer"
-            >
-              {loading ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <>
-                  <span>
-                    {paymentMode === 'ONLINE'
-                      ? `Confirm & Pay ₹${totalPrice.toFixed(2)}`
-                      : 'Confirm Slot (Pay at Spa)'}
-                  </span>
-                  <ArrowRight className="w-4 h-4" />
-                </>
-              )}
-            </button>
-
-          </form>
-        )}
-
-        {step === 'PAYING' && (
-          <div className="py-16 text-center space-y-4">
-            <div className="w-16 h-16 border-4 border-amber-500/20 border-t-amber-500 rounded-full animate-spin mx-auto" />
-            <h4 className="font-serif text-xl font-bold text-amber-200">Processing Online Razorpay Checkout...</h4>
-            <p className="text-xs text-stone-400">Securing appointment for ₹{totalPrice.toFixed(2)}...</p>
-          </div>
-        )}
-
-        {step === 'SUCCESS' && confirmedBooking && (
-          <div className="py-8 text-center space-y-6 animate-in zoom-in-95 duration-300">
-            <div className="w-16 h-16 bg-emerald-500/20 border border-emerald-500/50 rounded-full flex items-center justify-center mx-auto text-emerald-400 shadow-lg shadow-emerald-500/20">
-              <CheckCircle2 className="w-9 h-9" />
-            </div>
-
-            <div className="space-y-1">
-              <h4 className="font-serif text-2xl font-bold text-emerald-200">Reservation Confirmed!</h4>
-              <p className="text-xs text-stone-400">Your luxury spa ritual has been booked.</p>
-            </div>
-
-            {/* Booking Summary Box */}
-            <div className="bg-stone-950/80 border border-stone-800 rounded-xl p-4 text-left text-xs space-y-2 max-w-md mx-auto">
-              <div className="flex justify-between border-b border-stone-800 pb-2">
-                <span className="text-stone-400">Treatment</span>
-                <span className="font-semibold text-stone-200">{confirmedBooking.serviceName}</span>
-              </div>
-              <div className="flex justify-between border-b border-stone-800 pb-2">
-                <span className="text-stone-400">Therapist</span>
-                <span className="font-semibold text-stone-200">{confirmedBooking.staffName}</span>
-              </div>
-              <div className="flex justify-between border-b border-stone-800 pb-2">
-                <span className="text-stone-400">Date & Time</span>
-                <span className="font-semibold text-stone-200">{confirmedBooking.appointmentDate} at {confirmedBooking.startTime.substring(0, 5)}</span>
-              </div>
-              <div className="flex justify-between border-b border-stone-800 pb-2">
-                <span className="text-stone-400">Location</span>
-                <span className="font-semibold text-stone-200">{confirmedBooking.branchName}</span>
-              </div>
-              <div className="flex justify-between pt-1">
-                <span className="text-stone-400">Payment Status</span>
-                <span className="font-bold text-amber-300">
-                  {confirmedBooking.paymentMode === 'ONLINE' ? 'PAID ONLINE (₹' + confirmedBooking.totalPrice + ')' : 'PAY AT SPA (₹' + confirmedBooking.totalPrice + ')'}
-                </span>
-              </div>
-            </div>
-
-            {confirmedBooking.branchMapsUrl && (
-              <a
-                href={confirmedBooking.branchMapsUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 text-xs text-amber-300 hover:text-amber-200 underline"
+          {/* ── STEP: SUCCESS ─────────────────────────── */}
+          {step === 'SUCCESS' && confirmedBooking && (
+            <div className="py-8 text-center space-y-6">
+              <StepDots current={2} total={3} />
+              <div
+                className="w-16 h-16 rounded-full flex items-center justify-center mx-auto"
+                style={{ background: 'rgba(52,211,153,0.12)', border: '1px solid rgba(52,211,153,0.3)' }}
               >
-                <MapPin className="w-3.5 h-3.5" />
-                <span>Open Location in Google Maps</span>
-              </a>
-            )}
+                <CheckCircle2 className="w-8 h-8" style={{ color: 'var(--color-jade)' }} />
+              </div>
+              <div>
+                <h4 className="text-2xl font-bold italic mb-1" style={{ fontFamily: 'var(--font-playfair)', color: 'var(--color-cream)' }}>
+                  Reservation Confirmed! 🎉
+                </h4>
+                <p className="text-sm" style={{ color: 'var(--color-parchment)' }}>Your spa ritual has been successfully booked.</p>
+              </div>
 
-            <button
-              onClick={onClose}
-              className="block w-full max-w-xs mx-auto bg-stone-800 hover:bg-stone-700 text-stone-200 font-bold py-2.5 rounded-xl text-xs transition"
-            >
-              Done
-            </button>
-          </div>
-        )}
+              {/* Booking receipt */}
+              <div
+                className="text-left rounded-xl overflow-hidden max-w-sm mx-auto"
+                style={{ border: '1px solid rgba(255,255,255,0.08)' }}
+              >
+                {[
+                  { label: 'Treatment', value: confirmedBooking.serviceName },
+                  { label: 'Therapist', value: confirmedBooking.staffName },
+                  { label: 'Date & Time', value: `${confirmedBooking.appointmentDate} at ${confirmedBooking.startTime?.substring(0, 5)}` },
+                  { label: 'Location', value: confirmedBooking.branchName },
+                ].map(({ label, value }, i, arr) => (
+                  <div
+                    key={label}
+                    className="px-5 py-3 flex justify-between text-sm"
+                    style={{ background: 'rgba(255,255,255,0.03)', borderBottom: i < arr.length - 1 ? '1px solid rgba(255,255,255,0.06)' : 'none' }}
+                  >
+                    <span style={{ color: 'var(--color-muted)' }}>{label}</span>
+                    <span className="font-semibold" style={{ color: 'var(--color-cream)' }}>{value}</span>
+                  </div>
+                ))}
+                <div className="px-5 py-4 flex justify-between items-center" style={{ background: 'rgba(212,175,55,0.05)' }}>
+                  <span className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--color-cream)' }}>
+                    {confirmedBooking.paymentMode === 'ONLINE' ? 'Paid Online' : 'Pay at Spa'}
+                  </span>
+                  <span className="font-bold text-xl" style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-gold-light)' }}>
+                    ₹{confirmedBooking.totalPrice}
+                  </span>
+                </div>
+              </div>
 
+              {confirmedBooking.branchMapsUrl && (
+                <a
+                  href={confirmedBooking.branchMapsUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 text-xs font-medium transition-colors duration-200"
+                  style={{ color: 'var(--color-gold)' }}
+                >
+                  <MapPin className="w-3.5 h-3.5" /> Open in Google Maps ↗
+                </a>
+              )}
+
+              <button
+                onClick={onClose}
+                className="btn-ghost w-full max-w-xs mx-auto py-3 text-sm font-semibold cursor-pointer block"
+                style={{ borderRadius: 12 }}
+              >
+                Done
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
