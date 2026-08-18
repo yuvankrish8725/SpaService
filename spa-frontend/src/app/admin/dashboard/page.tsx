@@ -15,7 +15,8 @@ import {
   Users, MapPin, Calendar, CreditCard,
   Plus, Trash2, XCircle, LayoutDashboard, UserCheck,
   X, Loader2, Image as ImageIcon,
-  ArrowRightLeft, Sparkles, Edit3, Search, Check
+  ArrowRightLeft, Sparkles, Edit3, Search, Check,
+  ChevronDown, ChevronUp, ChevronsUpDown, Filter, Building2
 } from 'lucide-react';
 import StaffGalleryManageModal from '@/components/StaffGalleryManageModal';
 
@@ -136,6 +137,12 @@ export default function AdminDashboardPage() {
   const [selectedBranchFilter, setSelectedBranchFilter] = useState<string>('ALL');
   const [therapistSearch, setTherapistSearch] = useState('');
   const [therapistBranchFilter, setTherapistBranchFilter] = useState('ALL');
+
+  // Staff Roster specific search, location filter, branch filter, and accordion collapse state
+  const [rosterSearch, setRosterSearch] = useState('');
+  const [rosterLocationFilter, setRosterLocationFilter] = useState('ALL');
+  const [rosterBranchFilter, setRosterBranchFilter] = useState('ALL');
+  const [collapsedBranches, setCollapsedBranches] = useState<Record<string, boolean>>({});
 
   const [branches, setBranches] = useState<BranchResponse[]>([]);
   const [staff, setStaff] = useState<StaffCardResponse[]>([]);
@@ -486,198 +493,372 @@ export default function AdminDashboardPage() {
           </div>
         )}
 
-        {/* ── STAFF ROSTER (SIMPLE BRANCH ASSIGNMENT) ──────── */}
-        {activeSection === 'ROSTER' && (
-          <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div>
-                <h1 className="text-2xl font-bold italic" style={{ fontFamily: 'var(--font-playfair)', color: 'var(--color-cream)' }}>
-                  Branch Staff Assignment
-                </h1>
-                <p className="text-xs mt-1" style={{ color: 'var(--color-muted)' }}>
-                  Assign available therapists from the Master Gallery to each spa sanctuary and manage branch transfers.
-                </p>
+        {/* ── STAFF ROSTER (COLLAPSIBLE SANCTUARIES & MULTI-FILTER) ── */}
+        {activeSection === 'ROSTER' && (() => {
+          const uniqueLocations = Array.from(new Set(branches.map(b => b.city).filter(Boolean)));
+
+          const filteredBranches = branches.filter(b => {
+            const matchesLocation = rosterLocationFilter === 'ALL' || b.city.toLowerCase() === rosterLocationFilter.toLowerCase();
+            const matchesBranch = rosterBranchFilter === 'ALL' || b.id === rosterBranchFilter;
+            if (!matchesLocation || !matchesBranch) return false;
+
+            if (!rosterSearch.trim()) return true;
+
+            const q = rosterSearch.toLowerCase();
+            const branchMatches = b.name.toLowerCase().includes(q) || b.city.toLowerCase().includes(q) || (b.address && b.address.toLowerCase().includes(q));
+            const staffMatches = staff.some(s => s.branchId === b.id && (
+              s.name.toLowerCase().includes(q) ||
+              (s.specialization && s.specialization.toLowerCase().includes(q))
+            ));
+            return branchMatches || staffMatches;
+          });
+
+          const toggleCollapse = (branchId: string) => {
+            setCollapsedBranches(prev => ({
+              ...prev,
+              [branchId]: !prev[branchId]
+            }));
+          };
+
+          const expandAll = () => {
+            const m: Record<string, boolean> = {};
+            branches.forEach(b => { m[b.id] = false; });
+            setCollapsedBranches(m);
+          };
+
+          const collapseAll = () => {
+            const m: Record<string, boolean> = {};
+            branches.forEach(b => { m[b.id] = true; });
+            setCollapsedBranches(m);
+          };
+
+          const isAllCollapsed = branches.length > 0 && branches.every(b => collapsedBranches[b.id]);
+
+          return (
+            <div className="space-y-6">
+              {/* Header */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <h1 className="text-2xl font-bold italic" style={{ fontFamily: 'var(--font-playfair)', color: 'var(--color-cream)' }}>
+                    Branch Staff Assignment
+                  </h1>
+                  <p className="text-xs mt-1" style={{ color: 'var(--color-muted)' }}>
+                    Filter by location or branch, search therapists, and assign staff across sanctuaries.
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => setActiveSection('THERAPISTS')}
+                  className="btn-gold flex items-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-wide cursor-pointer self-start sm:self-auto"
+                  style={{ borderRadius: 10 }}
+                >
+                  <span style={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Sparkles className="w-3.5 h-3.5" /> Go to Therapist Gallery Studio
+                  </span>
+                </button>
               </div>
 
-              <button
-                onClick={() => setActiveSection('THERAPISTS')}
-                className="btn-gold flex items-center gap-2 px-4 py-2 text-xs font-bold uppercase tracking-wide cursor-pointer self-start sm:self-auto"
-                style={{ borderRadius: 10 }}
+              {/* ── Comprehensive Filter & Search Bar ───────────── */}
+              <div
+                className="p-4 sm:p-5 rounded-2xl glass-card space-y-4"
+                style={{ border: '1px solid rgba(212,175,55,0.18)' }}
               >
-                <span style={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Sparkles className="w-3.5 h-3.5" /> Go to Therapist Gallery Studio
-                </span>
-              </button>
-            </div>
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+                  {/* 1. Real-time Search */}
+                  <div className="sm:col-span-5 relative">
+                    <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-white/40" />
+                    <input
+                      type="text"
+                      placeholder="Search therapist, specialty, or branch..."
+                      value={rosterSearch}
+                      onChange={e => setRosterSearch(e.target.value)}
+                      className="input-glass w-full pl-9 pr-8 text-xs py-2.5"
+                    />
+                    {rosterSearch && (
+                      <button
+                        onClick={() => setRosterSearch('')}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
 
-            {/* Branch Filter Tabs */}
-            <div className="flex flex-wrap gap-2 pt-1 border-b border-white/10 pb-4">
-              <button
-                onClick={() => setSelectedBranchFilter('ALL')}
-                className="px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer transition-all duration-200"
-                style={selectedBranchFilter === 'ALL'
-                  ? { background: 'var(--color-gold)', color: '#0A0906', fontWeight: 'bold' }
-                  : { background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', color: 'var(--color-parchment)' }
-                }
-              >
-                All Sanctuaries ({staff.length})
-              </button>
-              {branches.map(b => {
-                const count = staff.filter(s => s.branchId === b.id).length;
-                const active = selectedBranchFilter === b.id;
-                return (
-                  <button
-                    key={b.id}
-                    onClick={() => setSelectedBranchFilter(b.id)}
-                    className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer transition-all duration-200"
-                    style={active
-                      ? { background: 'var(--color-gold)', color: '#0A0906', fontWeight: 'bold' }
-                      : { background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', color: 'var(--color-parchment)' }
-                    }
-                  >
-                    <MapPin className="w-3 h-3" />
-                    <span>{b.name}</span>
-                    <span className="px-1.5 py-0.2 rounded-full text-[10px]" style={{ background: active ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.1)' }}>
-                      {count}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Branch Cards with Clean Assignment List */}
-            {loading ? (
-              <div className="space-y-4">
-                {[1, 2].map(i => <div key={i} className="h-44 rounded-2xl bg-white/5 animate-pulse" />)}
-              </div>
-            ) : visibleBranches.length === 0 ? (
-              <div className="text-center py-12 rounded-2xl bg-white/5 text-white/50 text-sm">
-                No branches found.
-              </div>
-            ) : (
-              <div className="space-y-6">
-                {visibleBranches.map(branch => {
-                  const branchStaff = staff.filter(s => s.branchId === branch.id);
-                  const otherStaff = staff.filter(s => s.branchId !== branch.id);
-
-                  return (
-                    <div
-                      key={branch.id}
-                      className="glass-card p-6 rounded-2xl space-y-4"
-                      style={{ border: '1px solid rgba(212,175,55,0.15)' }}
+                  {/* 2. Location / City Filter */}
+                  <div className="sm:col-span-3">
+                    <select
+                      value={rosterLocationFilter}
+                      onChange={e => {
+                        setRosterLocationFilter(e.target.value);
+                        setRosterBranchFilter('ALL');
+                      }}
+                      style={selectStyle}
+                      className="text-xs py-2.5 cursor-pointer"
                     >
-                      {/* Branch Header */}
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/5">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <h2 className="text-lg font-bold italic" style={{ fontFamily: 'var(--font-playfair)', color: 'var(--color-cream)' }}>
-                              {branch.name}
-                            </h2>
-                            <span className="badge-gold text-[10px]">{branch.city}</span>
+                      <option value="ALL" className="bg-neutral-900 text-white">📍 All Locations ({uniqueLocations.length})</option>
+                      {uniqueLocations.map(loc => (
+                        <option key={loc} value={loc} className="bg-neutral-900 text-white">
+                          📍 {loc}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* 3. Branch Filter */}
+                  <div className="sm:col-span-4">
+                    <select
+                      value={rosterBranchFilter}
+                      onChange={e => setRosterBranchFilter(e.target.value)}
+                      style={selectStyle}
+                      className="text-xs py-2.5 cursor-pointer"
+                    >
+                      <option value="ALL" className="bg-neutral-900 text-white">🏢 All Sanctuaries ({branches.length})</option>
+                      {branches
+                        .filter(b => rosterLocationFilter === 'ALL' || b.city.toLowerCase() === rosterLocationFilter.toLowerCase())
+                        .map(b => (
+                          <option key={b.id} value={b.id} className="bg-neutral-900 text-white">
+                            {b.name} ({b.city})
+                          </option>
+                        ))
+                      }
+                    </select>
+                  </div>
+                </div>
+
+                {/* Filter Quick Pills & Expand/Collapse Controls */}
+                <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-white/5 text-xs">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-white/40 text-[11px] uppercase font-bold tracking-wider mr-1 flex items-center gap-1">
+                      <Filter className="w-3 h-3 text-amber-400" /> Sanctuaries:
+                    </span>
+                    <button
+                      onClick={() => { setRosterBranchFilter('ALL'); setRosterLocationFilter('ALL'); }}
+                      className="px-3 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-colors"
+                      style={rosterBranchFilter === 'ALL' && rosterLocationFilter === 'ALL'
+                        ? { background: 'var(--color-gold)', color: '#0A0906', fontWeight: 'bold' }
+                        : { background: 'rgba(255,255,255,0.05)', color: 'var(--color-parchment)' }
+                      }
+                    >
+                      All ({branches.length})
+                    </button>
+                    {branches.map(b => {
+                      const active = rosterBranchFilter === b.id;
+                      const count = staff.filter(s => s.branchId === b.id).length;
+                      return (
+                        <button
+                          key={b.id}
+                          onClick={() => { setRosterBranchFilter(b.id); }}
+                          className="flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-colors"
+                          style={active
+                            ? { background: 'var(--color-gold)', color: '#0A0906', fontWeight: 'bold' }
+                            : { background: 'rgba(255,255,255,0.05)', color: 'var(--color-parchment)' }
+                          }
+                        >
+                          <span>{b.name.replace('Serene Haven — ', '')}</span>
+                          <span className="px-1.5 py-0.2 rounded-full text-[10px]" style={{ background: active ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.1)' }}>
+                            {count}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Expand / Collapse All */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={isAllCollapsed ? expandAll : collapseAll}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors bg-white/5 hover:bg-white/10 text-amber-300 border border-amber-400/20"
+                    >
+                      <ChevronsUpDown className="w-3.5 h-3.5" />
+                      <span>{isAllCollapsed ? 'Expand All Branches' : 'Collapse All Branches'}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* ── Collapsible Branch Accordion ────────────────── */}
+              {loading ? (
+                <div className="space-y-4">
+                  {[1, 2, 3].map(i => <div key={i} className="h-28 rounded-2xl bg-white/5 animate-pulse" />)}
+                </div>
+              ) : filteredBranches.length === 0 ? (
+                <div className="text-center py-16 rounded-2xl bg-white/5 text-white/50 text-xs space-y-2 border border-white/5">
+                  <Building2 className="w-8 h-8 mx-auto text-amber-400/40 mb-1" />
+                  <div className="font-semibold text-white/80">No sanctuaries matched your filter.</div>
+                  <p className="text-white/40">Try clearing the search or switching location filters above.</p>
+                  <button
+                    onClick={() => { setRosterSearch(''); setRosterLocationFilter('ALL'); setRosterBranchFilter('ALL'); }}
+                    className="btn-gold px-4 py-1.5 text-xs font-bold uppercase tracking-wider cursor-pointer mt-2"
+                    style={{ borderRadius: 8 }}
+                  >
+                    <span style={{ position: 'relative', zIndex: 2 }}>Reset Filters</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {filteredBranches.map(branch => {
+                    const branchStaff = staff.filter(s => s.branchId === branch.id);
+                    const otherStaff = staff.filter(s => s.branchId !== branch.id);
+                    const isCollapsed = Boolean(collapsedBranches[branch.id]);
+
+                    return (
+                      <div
+                        key={branch.id}
+                        className="glass-card rounded-2xl overflow-hidden transition-all duration-200"
+                        style={{
+                          border: '1px solid rgba(212,175,55,0.18)',
+                          boxShadow: '0 4px 20px rgba(0,0,0,0.2)',
+                        }}
+                      >
+                        {/* ── Accordion Header (Clickable) ──────── */}
+                        <div
+                          onClick={() => toggleCollapse(branch.id)}
+                          className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer hover:bg-white/3 transition-colors select-none"
+                          style={{ background: 'rgba(255,255,255,0.015)' }}
+                        >
+                          <div className="flex items-center gap-3.5 min-w-0">
+                            {/* Chevron Toggle Icon */}
+                            <div
+                              className="w-8 h-8 rounded-xl flex items-center justify-center transition-transform duration-200 shrink-0"
+                              style={{
+                                background: 'rgba(212,175,55,0.1)',
+                                color: 'var(--color-gold)',
+                                transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)',
+                              }}
+                            >
+                              <ChevronDown className="w-4 h-4" />
+                            </div>
+
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <h2 className="text-base font-bold italic" style={{ fontFamily: 'var(--font-playfair)', color: 'var(--color-cream)' }}>
+                                  {branch.name}
+                                </h2>
+                                <span className="badge-gold text-[10px] px-2 py-0.5">{branch.city}</span>
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-white/60 font-mono">
+                                  {branchStaff.length} {branchStaff.length === 1 ? 'Therapist' : 'Therapists'}
+                                </span>
+                              </div>
+                              <p className="text-xs text-white/40 mt-0.5 truncate">
+                                {branch.address} · ⏱ {branch.openTime?.substring(0, 5)} - {branch.closeTime?.substring(0, 5)}
+                              </p>
+                            </div>
                           </div>
-                          <p className="text-xs text-white/40 mt-0.5">
-                            {branch.address} · ⏱ {branch.openTime?.substring(0, 5)} - {branch.closeTime?.substring(0, 5)}
-                          </p>
+
+                          {/* Quick Assign Therapist Dropdown & Expand Indicator */}
+                          <div
+                            className="flex items-center gap-3 shrink-0 self-end sm:self-center"
+                            onClick={e => e.stopPropagation()}
+                          >
+                            {otherStaff.length > 0 && (
+                              <select
+                                defaultValue=""
+                                onChange={e => {
+                                  if (e.target.value) {
+                                    handleReassignBranch(e.target.value, branch.id);
+                                    e.target.value = '';
+                                  }
+                                }}
+                                className="text-xs py-1.5 px-3 rounded-xl cursor-pointer bg-white/5 border border-amber-400/30 text-amber-300 hover:bg-white/10 transition-colors"
+                              >
+                                <option value="" className="bg-neutral-900 text-white/60">+ Assign Therapist to {branch.name}...</option>
+                                {otherStaff.map(os => (
+                                  <option key={os.id} value={os.id} className="bg-neutral-900 text-white">
+                                    {os.name} (from: {os.branchName || 'Unassigned'})
+                                  </option>
+                                ))}
+                              </select>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={() => toggleCollapse(branch.id)}
+                              className="text-[11px] text-amber-300/80 hover:text-amber-300 font-semibold px-2 py-1 rounded bg-white/5 hover:bg-white/10 transition-colors cursor-pointer"
+                            >
+                              {isCollapsed ? 'Expand ▾' : 'Collapse ▴'}
+                            </button>
+                          </div>
                         </div>
 
-                        {/* Quick Assign Therapist to this Branch */}
-                        {otherStaff.length > 0 && (
-                          <div className="flex items-center gap-2">
-                            <select
-                              defaultValue=""
-                              onChange={e => {
-                                if (e.target.value) {
-                                  handleReassignBranch(e.target.value, branch.id);
-                                  e.target.value = '';
-                                }
-                              }}
-                              className="text-xs py-2 px-3 rounded-xl cursor-pointer bg-white/5 border border-amber-400/30 text-amber-300 hover:bg-white/10 transition-colors"
-                            >
-                              <option value="" className="bg-neutral-900 text-white/60">+ Assign Therapist to {branch.name}...</option>
-                              {otherStaff.map(os => (
-                                <option key={os.id} value={os.id} className="bg-neutral-900 text-white">
-                                  {os.name} (Currently at: {os.branchName || 'Unassigned'})
-                                </option>
-                              ))}
-                            </select>
+                        {/* ── Accordion Body (Assigned Practitioners) ── */}
+                        {!isCollapsed && (
+                          <div className="p-4 sm:p-5 pt-0 border-t border-white/5 space-y-3 mt-1">
+                            {branchStaff.length === 0 ? (
+                              <div className="p-4 text-center rounded-xl bg-white/2 border border-dashed border-white/10 text-xs text-white/40">
+                                No therapists currently assigned to {branch.name}. Use the dropdown above to assign a practitioner.
+                              </div>
+                            ) : (
+                              <div className="space-y-2">
+                                <div className="text-[11px] font-semibold uppercase tracking-wider text-white/40 px-2 flex justify-between">
+                                  <span>Assigned Practitioners ({branchStaff.length})</span>
+                                  <span>Sanctuary Transfer</span>
+                                </div>
+
+                                <div className="divide-y divide-white/5 rounded-xl overflow-hidden bg-white/2 border border-white/5">
+                                  {branchStaff.map(s => (
+                                    <div
+                                      key={s.id}
+                                      className="flex items-center justify-between p-3.5 hover:bg-white/5 transition-colors gap-4"
+                                    >
+                                      <div className="flex items-center gap-3 min-w-0">
+                                        <div
+                                          className="w-10 h-10 rounded-full overflow-hidden shrink-0 flex items-center justify-center font-bold text-sm"
+                                          style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(212,175,55,0.3)', color: 'var(--color-gold)' }}
+                                        >
+                                          {s.profilePhotoUrl ? (
+                                            // eslint-disable-next-line @next/next/no-img-element
+                                            <img src={s.profilePhotoUrl} alt={s.name} className="w-full h-full object-cover" />
+                                          ) : (
+                                            s.name[0]
+                                          )}
+                                        </div>
+                                        <div className="min-w-0">
+                                          <div className="font-semibold text-sm truncate" style={{ color: 'var(--color-cream)' }}>
+                                            {s.name}
+                                          </div>
+                                          <div className="text-xs text-amber-300/80 truncate">
+                                            {s.specialization || 'Wellness Specialist'}
+                                          </div>
+                                        </div>
+                                        <div className="ml-2 hidden sm:block">
+                                          {s.presentToday ? (
+                                            <span className="badge-jade text-[9px] px-2 py-0.5"><span className="presence-dot-present" /> Present</span>
+                                          ) : (
+                                            <span className="badge-rose text-[9px] px-2 py-0.5"><XCircle className="w-2.5 h-2.5" /> On Leave</span>
+                                          )}
+                                        </div>
+                                      </div>
+
+                                      {/* Quick Transfer Dropdown */}
+                                      <div className="flex items-center gap-2 shrink-0">
+                                        <span className="text-[11px] text-white/40 hidden md:inline">Move to:</span>
+                                        <select
+                                          value={s.branchId}
+                                          onChange={e => handleReassignBranch(s.id, e.target.value)}
+                                          className="text-xs py-1.5 px-2.5 rounded-lg cursor-pointer bg-white/5 border border-white/10 text-white/80 hover:border-amber-400/40 transition-colors"
+                                        >
+                                          {branches.map(b => (
+                                            <option key={b.id} value={b.id} className="bg-neutral-900 text-white">
+                                              {b.name}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
-
-                      {/* Assigned Staff List */}
-                      {branchStaff.length === 0 ? (
-                        <div className="p-4 text-center rounded-xl bg-white/2 border border-dashed border-white/10 text-xs text-white/40">
-                          No therapists currently assigned to {branch.name}. Use the dropdown above to assign a practitioner.
-                        </div>
-                      ) : (
-                        <div className="space-y-2">
-                          <div className="text-[11px] font-semibold uppercase tracking-wider text-white/40 px-2 flex justify-between">
-                            <span>Assigned Practitioners ({branchStaff.length})</span>
-                            <span>Sanctuary Transfer</span>
-                          </div>
-
-                          <div className="divide-y divide-white/5 rounded-xl overflow-hidden bg-white/2 border border-white/5">
-                            {branchStaff.map(s => (
-                              <div
-                                key={s.id}
-                                className="flex items-center justify-between p-3.5 hover:bg-white/5 transition-colors gap-4"
-                              >
-                                <div className="flex items-center gap-3 min-w-0">
-                                  <div
-                                    className="w-10 h-10 rounded-full overflow-hidden shrink-0 flex items-center justify-center font-bold text-sm"
-                                    style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(212,175,55,0.3)', color: 'var(--color-gold)' }}
-                                  >
-                                    {s.profilePhotoUrl ? (
-                                      // eslint-disable-next-line @next/next/no-img-element
-                                      <img src={s.profilePhotoUrl} alt={s.name} className="w-full h-full object-cover" />
-                                    ) : (
-                                      s.name[0]
-                                    )}
-                                  </div>
-                                  <div className="min-w-0">
-                                    <div className="font-semibold text-sm truncate" style={{ color: 'var(--color-cream)' }}>
-                                      {s.name}
-                                    </div>
-                                    <div className="text-xs text-amber-300/80 truncate">
-                                      {s.specialization || 'Wellness Specialist'}
-                                    </div>
-                                  </div>
-                                  <div className="ml-2 hidden sm:block">
-                                    {s.presentToday ? (
-                                      <span className="badge-jade text-[9px] px-2 py-0.5"><span className="presence-dot-present" /> Present</span>
-                                    ) : (
-                                      <span className="badge-rose text-[9px] px-2 py-0.5"><XCircle className="w-2.5 h-2.5" /> On Leave</span>
-                                    )}
-                                  </div>
-                                </div>
-
-                                {/* Quick Transfer Dropdown */}
-                                <div className="flex items-center gap-2 shrink-0">
-                                  <span className="text-[11px] text-white/40 hidden md:inline">Move to:</span>
-                                  <select
-                                    value={s.branchId}
-                                    onChange={e => handleReassignBranch(s.id, e.target.value)}
-                                    className="text-xs py-1.5 px-2.5 rounded-lg cursor-pointer bg-white/5 border border-white/10 text-white/80 hover:border-amber-400/40 transition-colors"
-                                  >
-                                    {branches.map(b => (
-                                      <option key={b.id} value={b.id} className="bg-neutral-900 text-white">
-                                        {b.name}
-                                      </option>
-                                    ))}
-                                  </select>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* ── THERAPISTS & GALLERY STUDIO (MASTER DIRECTORY & CREATION) ── */}
         {activeSection === 'THERAPISTS' && (
