@@ -143,9 +143,8 @@ export default function Navbar() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-20">
 
-            {/* ── LEFT SIDE: Brand Logo + Primary Nav Links ── */}
+            {/* ── LEFT SIDE: Brand Logo Only ── */}
             <div className="flex items-center gap-8 lg:gap-10">
-              {/* Brand Logo */}
               <Link href={user ? portalHref : '/'} className="flex items-center gap-3 group shrink-0">
                 <div
                   className="w-10 h-10 rounded-full flex items-center justify-center transition-transform duration-300 group-hover:scale-110"
@@ -172,24 +171,18 @@ export default function Navbar() {
                 </div>
               </Link>
 
-              {/* ── Left-Aligned Nav Items: Branches & Treatments (No Home when logged in) ── */}
-              <nav className="hidden md:flex items-center gap-6">
-                {!user && (
+              {/* ── Public nav links (Only when NOT logged in) ── */}
+              {!user && (
+                <nav className="hidden md:flex items-center gap-6">
                   <NavLink href="/" active={pathname === '/'}>Home</NavLink>
-                )}
-                <NavLink href="/branches" active={pathname.startsWith('/branches')}>
-                  <span className="flex items-center gap-1.5">
-                    <MapPin className="w-3.5 h-3.5" style={{ color: 'var(--color-gold)' }} />
-                    Branches
-                  </span>
-                </NavLink>
-                <NavLink href="/services" active={pathname.startsWith('/services')}>
-                  <span className="flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5" style={{ color: 'var(--color-gold)' }} />
-                    Treatments
-                  </span>
-                </NavLink>
-              </nav>
+                  <NavLink href="/services" active={pathname.startsWith('/services')}>
+                    <span className="flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5" style={{ color: 'var(--color-gold)' }} />
+                      Treatments
+                    </span>
+                  </NavLink>
+                </nav>
+              )}
             </div>
 
             {/* ── RIGHT SIDE: Profile, Portal CTA & Session ── */}
@@ -329,42 +322,31 @@ export default function Navbar() {
 
             {/* Drawer nav items */}
             <nav className="flex-1 px-4 pt-6 space-y-1">
-              {!user && (
-                <Link
-                  href="/"
-                  className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors duration-200"
-                  style={{
-                    color: pathname === '/' ? 'var(--color-gold-light)' : 'var(--color-parchment)',
-                    background: pathname === '/' ? 'rgba(212,175,55,0.08)' : 'transparent',
-                  }}
-                >
-                  Home
-                </Link>
-              )}
-              <Link
-                href="/branches"
-                className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors duration-200"
-                style={{
-                  color: pathname.startsWith('/branches') ? 'var(--color-gold-light)' : 'var(--color-parchment)',
-                  background: pathname.startsWith('/branches') ? 'rgba(212,175,55,0.08)' : 'transparent',
-                }}
-              >
-                <MapPin className="w-4 h-4" style={{ color: 'var(--color-gold)' }} />
-                Branches
-              </Link>
-              <Link
-                href="/services"
-                className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors duration-200"
-                style={{
-                  color: pathname.startsWith('/services') ? 'var(--color-gold-light)' : 'var(--color-parchment)',
-                  background: pathname.startsWith('/services') ? 'rgba(212,175,55,0.08)' : 'transparent',
-                }}
-              >
-                <Sparkles className="w-4 h-4" style={{ color: 'var(--color-gold)' }} />
-                Treatments
-              </Link>
-
-              {user && (
+              {!user ? (
+                <>
+                  <Link
+                    href="/"
+                    className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors duration-200"
+                    style={{
+                      color: pathname === '/' ? 'var(--color-gold-light)' : 'var(--color-parchment)',
+                      background: pathname === '/' ? 'rgba(212,175,55,0.08)' : 'transparent',
+                    }}
+                  >
+                    Home
+                  </Link>
+                  <Link
+                    href="/services"
+                    className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors duration-200"
+                    style={{
+                      color: pathname.startsWith('/services') ? 'var(--color-gold-light)' : 'var(--color-parchment)',
+                      background: pathname.startsWith('/services') ? 'rgba(212,175,55,0.08)' : 'transparent',
+                    }}
+                  >
+                    <Sparkles className="w-4 h-4" style={{ color: 'var(--color-gold)' }} />
+                    Treatments
+                  </Link>
+                </>
+              ) : (
                 <Link
                   href={portalHref}
                   className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium mt-3 transition-colors duration-200"
