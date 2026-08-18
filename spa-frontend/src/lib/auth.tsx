@@ -12,6 +12,7 @@ interface AuthContextType {
   register: (fullName: string, email: string, phone: string, pass: string) => Promise<AuthResponse>;
   logout: () => void;
   updateAuth: (authResponse: AuthResponse) => void;
+  refreshUnlocks: () => Promise<void>;
   isBranchUnlocked: (branchId: string) => boolean;
   getBranchUnlockRemainingTime: (branchId: string) => string | null;
 }
@@ -24,28 +25,60 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
+  const refreshUnlocks = async () => {
     try {
       const storedToken = localStorage.getItem('spa_token');
-      const storedUser = localStorage.getItem('spa_user');
-      const storedUnlocks = localStorage.getItem('spa_unlocks');
-
-      if (storedToken && storedUser) {
-        setToken(storedToken);
-        setUser(JSON.parse(storedUser));
-        if (storedUnlocks) {
-          const parsedUnlocks: BranchUnlockDto[] = JSON.parse(storedUnlocks);
-          // filter out expired unlocks
-          const now = new Date().getTime();
-          const validUnlocks = parsedUnlocks.filter(u => new Date(u.expiresAt).getTime() > now);
-          setActiveUnlocks(validUnlocks);
-        }
-      }
-    } catch (e) {
-      console.error('Failed to load stored auth', e);
-    } finally {
-      setIsLoading(false);
+      if (!storedToken) return;
+      const unlocks = await apiFetch<BranchUnlockDto[]>('/client/unlocks');
+      setActiveUnlocks(unlocks || []);
+      localStorage.setItem('spa_unlocks', JSON.stringify(unlocks || []));
+    } catch {
+      // ignore or token expired
     }
+  };
+
+  useEffect(() => {
+    const initAuth = async () => {
+      try {
+        const storedToken = localStorage.getItem('spa_token');
+        const storedUser = localStorage.getItem('spa_user');
+        const storedUnlocks = localStorage.getItem('spa_unlocks');
+
+        if (storedToken && storedUser) {
+          setToken(storedToken);
+          const parsedUser = JSON.parse(storedUser);
+          setUser(parsedUser);
+
+          if (storedUnlocks) {
+            const parsedUnlocks: BranchUnlockDto[] = JSON.parse(storedUnlocks);
+            const now = new Date().getTime();
+            const validUnlocks = parsedUnlocks.filter(u => new Date(u.expiresAt).getTime() > now);
+            setActiveUnlocks(validUnlocks);
+          }
+
+          // Sync fresh active unlocks from backend
+          if (parsedUser.role === 'CLIENT') {
+            try {
+              const freshUnlocks = await apiFetch<BranchUnlockDto[]>('/client/unlocks');
+              setActiveUnlocks(freshUnlocks || []);
+              localStorage.setItem('spa_unlocks', JSON.stringify(freshUnlocks || []));
+            } catch (err: unknown) {
+              const msg = err instanceof Error ? err.message : '';
+              if (msg.includes('401') || msg.includes('403') || msg.includes('Forbidden') || msg.includes('Unauthorized')) {
+                // Backend database was wiped/restarted — clear stale local session
+                logout();
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Failed to load stored auth', e);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    initAuth();
   }, []);
 
   const updateAuth = (auth: AuthResponse) => {
@@ -116,6 +149,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         register,
         logout,
         updateAuth,
+        refreshUnlocks,
         isBranchUnlocked,
         getBranchUnlockRemainingTime,
       }}
