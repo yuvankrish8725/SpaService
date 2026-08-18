@@ -518,43 +518,150 @@ export default function AdminDashboardPage() {
         )}
 
         {/* ── PAYMENTS ─────────────────────────────────────── */}
-        {activeSection === 'PAYMENTS' && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between gap-4 flex-wrap">
-              <h1 className="text-2xl font-bold italic" style={{ fontFamily: 'var(--font-playfair)', color: 'var(--color-cream)' }}>Revenue & Payments</h1>
-              <div
-                className="px-4 py-2 rounded-xl text-sm font-bold"
-                style={{ background: 'rgba(212,175,55,0.08)', border: '1px solid rgba(212,175,55,0.2)', color: 'var(--color-gold-light)', fontFamily: 'var(--font-mono)' }}
-              >
-                Total: ₹{totalRevenue.toLocaleString()}
+        {activeSection === 'PAYMENTS' && (() => {
+          const clientSpendMap = payments.reduce<Record<string, { name: string; email: string; totalSpent: number; count: number; lastDate: string }>>((acc, p) => {
+            const key = p.clientEmail || p.clientName || 'Unknown Client';
+            if (!acc[key]) {
+              acc[key] = {
+                name: p.clientName || 'Client',
+                email: p.clientEmail || key,
+                totalSpent: 0,
+                count: 0,
+                lastDate: p.createdAt || '',
+              };
+            }
+            acc[key].totalSpent += Number(p.totalAmount || 0);
+            acc[key].count += 1;
+            if (p.createdAt && (!acc[key].lastDate || new Date(p.createdAt) > new Date(acc[key].lastDate))) {
+              acc[key].lastDate = p.createdAt;
+            }
+            return acc;
+          }, {});
+
+          const clientSpendList = Object.values(clientSpendMap).sort((a, b) => b.totalSpent - a.totalSpent);
+
+          return (
+            <div className="space-y-8">
+              {/* Header & Metrics */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <h1 className="text-2xl font-bold italic" style={{ fontFamily: 'var(--font-playfair)', color: 'var(--color-cream)' }}>
+                    Client Spending &amp; Payment History
+                  </h1>
+                  <p className="text-xs mt-1" style={{ color: 'var(--color-muted)' }}>
+                    Track per-client lifetime value, branch unlock fees, and treatment transaction logs.
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div
+                    className="px-4 py-2 rounded-xl text-sm font-bold"
+                    style={{ background: 'rgba(212,175,55,0.08)', border: '1px solid rgba(212,175,55,0.25)', color: 'var(--color-gold-light)', fontFamily: 'var(--font-mono)' }}
+                  >
+                    Total Collected: ₹{totalRevenue.toLocaleString()}
+                  </div>
+                  <div
+                    className="px-4 py-2 rounded-xl text-sm font-bold"
+                    style={{ background: 'rgba(52,211,153,0.08)', border: '1px solid rgba(52,211,153,0.25)', color: 'var(--color-jade)', fontFamily: 'var(--font-mono)' }}
+                  >
+                    {clientSpendList.length} Paying Clients
+                  </div>
+                </div>
+              </div>
+
+              {/* 1. Client Lifetime Spend Table */}
+              <div className="space-y-4">
+                <h2 className="text-lg font-bold" style={{ fontFamily: 'var(--font-playfair)', color: 'var(--color-cream)' }}>
+                  Client Lifetime Spend Breakdown
+                </h2>
+                {loading ? (
+                  <div className="space-y-3">{[1,2,3].map(i => <div key={i} className="h-16 rounded-xl bg-white/5 animate-pulse" />)}</div>
+                ) : clientSpendList.length === 0 ? (
+                  <div className="text-center py-12 rounded-2xl" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', color: 'var(--color-muted)' }}>
+                    No client payment records yet.
+                  </div>
+                ) : (
+                  <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
+                    <div className="grid grid-cols-4 px-5 py-3 text-xs font-bold uppercase tracking-wider" style={{ background: 'rgba(212,175,55,0.06)', color: 'var(--color-gold-light)', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                      <span>Client</span>
+                      <span>Transactions</span>
+                      <span>Last Activity</span>
+                      <span className="text-right">Total Spent</span>
+                    </div>
+                    {clientSpendList.map((c, i) => (
+                      <div
+                        key={c.email || i}
+                        className="grid grid-cols-4 items-center px-5 py-4 text-sm"
+                        style={{
+                          borderBottom: i < clientSpendList.length - 1 ? '1px solid rgba(255,255,255,0.06)' : 'none',
+                          background: i % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent',
+                        }}
+                      >
+                        <div>
+                          <div className="font-semibold" style={{ color: 'var(--color-cream)' }}>{c.name}</div>
+                          <div className="text-xs" style={{ color: 'var(--color-muted)' }}>{c.email}</div>
+                        </div>
+                        <div className="text-xs" style={{ color: 'var(--color-parchment)' }}>
+                          {c.count} {c.count === 1 ? 'payment' : 'payments'}
+                        </div>
+                        <div className="text-xs" style={{ color: 'var(--color-muted)' }}>
+                          {c.lastDate ? new Date(c.lastDate).toLocaleDateString('en-IN') : '—'}
+                        </div>
+                        <div className="text-right font-bold text-base" style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-gold-light)' }}>
+                          ₹{c.totalSpent.toLocaleString()}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* 2. Detailed Payment Transaction Log */}
+              <div className="space-y-4 pt-4">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-bold" style={{ fontFamily: 'var(--font-playfair)', color: 'var(--color-cream)' }}>
+                    Detailed Transactions Log
+                  </h2>
+                  <span className="text-xs" style={{ color: 'var(--color-muted)' }}>
+                    Showing {payments.length} transactions
+                  </span>
+                </div>
+
+                {loading ? (
+                  <div className="space-y-3">{[1,2,3].map(i => <div key={i} className="h-14 rounded-xl bg-white/5 animate-pulse" />)}</div>
+                ) : (
+                  <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
+                    {payments.length === 0 ? (
+                      <div className="text-center py-12" style={{ color: 'var(--color-muted)' }}>No payments yet.</div>
+                    ) : payments.map((p, i) => (
+                      <div
+                        key={p.id || i}
+                        className="flex items-center justify-between px-5 py-4"
+                        style={{ borderBottom: i < payments.length - 1 ? '1px solid rgba(255,255,255,0.06)' : 'none', background: i % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent' }}
+                      >
+                        <div>
+                          <div className="text-sm font-medium" style={{ color: 'var(--color-parchment)' }}>
+                            {p.description || p.paymentType}
+                          </div>
+                          <div className="text-xs mt-0.5" style={{ color: 'var(--color-muted)' }}>
+                            <span className="font-semibold text-white/80">{p.clientName || 'Client'}</span> ({p.clientEmail || 'client@example.com'}) · {p.createdAt ? new Date(p.createdAt).toLocaleDateString('en-IN') : '—'}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="font-bold" style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-gold-light)' }}>
+                            ₹{p.totalAmount}
+                          </div>
+                          <div className="text-[10px] mt-0.5" style={{ color: p.status === 'COMPLETED' ? 'var(--color-jade)' : 'var(--color-muted)' }}>
+                            {p.status}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
-            {loading ? (
-              <div className="space-y-3">{[1,2,3].map(i => <div key={i} className="h-14 rounded-xl bg-white/5 animate-pulse" />)}</div>
-            ) : (
-              <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid rgba(255,255,255,0.08)' }}>
-                {payments.length === 0 ? (
-                  <div className="text-center py-12" style={{ color: 'var(--color-muted)' }}>No payments yet.</div>
-                ) : payments.map((p, i) => (
-                  <div
-                    key={p.id || i}
-                    className="flex items-center justify-between px-5 py-4"
-                    style={{ borderBottom: i < payments.length - 1 ? '1px solid rgba(255,255,255,0.06)' : 'none', background: i % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent' }}
-                  >
-                    <div>
-                      <div className="text-sm font-medium" style={{ color: 'var(--color-parchment)' }}>{p.description || p.paymentType}</div>
-                      <div className="text-xs mt-0.5" style={{ color: 'var(--color-muted)' }}>{p.clientName} · {p.createdAt ? new Date(p.createdAt).toLocaleDateString('en-IN') : '—'}</div>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-bold" style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-gold-light)' }}>₹{p.totalAmount}</div>
-                      <div className="text-[10px] mt-0.5" style={{ color: p.status === 'COMPLETED' ? 'var(--color-jade)' : 'var(--color-muted)' }}>{p.status}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+          );
+        })()}
       </main>
 
       {/* ══ CREATE BRANCH MODAL ══════════════════════════════ */}

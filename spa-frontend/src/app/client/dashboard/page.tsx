@@ -4,15 +4,15 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
-import { apiFetch, AppointmentResponse, PaymentSummaryDto, BranchResponse, SpaServiceResponse } from '@/lib/api';
+import { apiFetch, AppointmentResponse, BranchResponse, SpaServiceResponse } from '@/lib/api';
 import {
-  Calendar, Key, Clock, MapPin, CreditCard, ArrowRight, CheckCircle2,
-  XCircle, LayoutDashboard, Receipt, Sparkles, Search, Lock, Phone
+  Calendar, Key, Clock, MapPin, ArrowRight, CheckCircle2,
+  XCircle, LayoutDashboard, Sparkles, Search, Lock, Phone
 } from 'lucide-react';
 import UnlockModal from '@/components/UnlockModal';
 import BookingModal from '@/components/BookingModal';
 
-type NavSection = 'OVERVIEW' | 'BRANCHES' | 'TREATMENTS' | 'UNLOCKS' | 'APPOINTMENTS' | 'PAYMENTS';
+type NavSection = 'OVERVIEW' | 'BRANCHES' | 'TREATMENTS' | 'UNLOCKS' | 'APPOINTMENTS';
 
 const BRANCH_IMAGES = [
   'https://images.unsplash.com/photo-1544161515-4ab6ce6db874?w=800&auto=format&fit=crop&q=80',
@@ -63,7 +63,6 @@ export default function ClientDashboardPage() {
   const router = useRouter();
   const { user, activeUnlocks, getBranchUnlockRemainingTime, isBranchUnlocked } = useAuth();
   const [appointments, setAppointments] = useState<AppointmentResponse[]>([]);
-  const [payments, setPayments] = useState<PaymentSummaryDto[]>([]);
   const [branches, setBranches] = useState<BranchResponse[]>([]);
   const [services, setServices] = useState<SpaServiceResponse[]>([]);
   const [loading, setLoading] = useState(true);
@@ -78,12 +77,10 @@ export default function ClientDashboardPage() {
     if (!user) { router.push('/auth/login'); return; }
     Promise.all([
       apiFetch<AppointmentResponse[]>('/appointments/my').catch(() => []),
-      apiFetch<PaymentSummaryDto[]>('/client/payments').catch(() => []),
       apiFetch<BranchResponse[]>('/branches').catch(() => []),
       apiFetch<SpaServiceResponse[]>('/services').catch(() => []),
-    ]).then(([a, p, b, s]) => {
+    ]).then(([a, b, s]) => {
       setAppointments(a);
-      setPayments(p);
       setBranches(b);
       setServices(s);
     }).finally(() => setLoading(false));
@@ -110,7 +107,6 @@ export default function ClientDashboardPage() {
 
   const initials = user.fullName.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
   const upcomingAppts = appointments.filter(a => a.status === 'CONFIRMED' || a.status === 'PENDING');
-  const totalSpend = payments.reduce((s, p) => s + Number(p.totalAmount || 0), 0);
 
   const filteredBranches = branches.filter(b =>
     b.name.toLowerCase().includes(searchCity.toLowerCase()) ||
@@ -125,7 +121,6 @@ export default function ClientDashboardPage() {
     { section: 'TREATMENTS', label: 'Treatments', icon: <Sparkles className="w-4 h-4" /> },
     { section: 'UNLOCKS', label: 'Active Unlocks', icon: <Key className="w-4 h-4" /> },
     { section: 'APPOINTMENTS', label: 'Appointments', icon: <Calendar className="w-4 h-4" /> },
-    { section: 'PAYMENTS', label: 'Payment History', icon: <CreditCard className="w-4 h-4" /> },
   ];
 
   return (
@@ -211,7 +206,7 @@ export default function ClientDashboardPage() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <StatCard icon={<Key className="w-4 h-4" />} label="Active Unlocks" value={String(activeUnlocks.length)} sub="Valid until 11:59 PM IST" />
               <StatCard icon={<Calendar className="w-4 h-4" />} label="Upcoming Sessions" value={String(upcomingAppts.length)} sub="Confirmed bookings" />
-              <StatCard icon={<CreditCard className="w-4 h-4" />} label="Total Spent" value={`₹${totalSpend.toFixed(0)}`} sub="All time" />
+              <StatCard icon={<Sparkles className="w-4 h-4" />} label="Available Rituals" value={String(services.length)} sub="Across all branches" />
             </div>
 
             {/* Active unlocks quick-view */}
@@ -258,7 +253,7 @@ export default function ClientDashboardPage() {
                 </button>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                {branches.slice(0, 3).map((b, idx) => {
+                {branches.slice(0, 3).map((b) => {
                   const unlocked = isBranchUnlocked(b.id);
                   return (
                     <div key={b.id} className="glass-card p-5 space-y-3" style={{ borderRadius: 16 }}>
@@ -306,7 +301,7 @@ export default function ClientDashboardPage() {
                         </div>
                         <div>
                           <div className="text-sm font-semibold" style={{ color: 'var(--color-cream)' }}>{a.serviceName}</div>
-                          <div className="text-xs mt-0.5" style={{ color: 'var(--color-muted)' }}>{a.staffName} · {a.branchName}</div>
+                          <div className="text-xs mt-0.5" style={{ color: 'var(--color-muted)' }}>with {a.staffName} · {a.branchName}</div>
                         </div>
                       </div>
                       <div className="text-right">
@@ -640,48 +635,6 @@ export default function ClientDashboardPage() {
                       <span className="font-bold text-sm" style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-gold-light)' }}>
                         ₹{a.totalPrice}
                       </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ── PAYMENTS ──────────────────────────────────── */}
-        {activeSection === 'PAYMENTS' && (
-          <div className="space-y-6">
-            <h1 className="text-2xl font-bold italic" style={{ fontFamily: 'var(--font-playfair)', color: 'var(--color-cream)' }}>Payment History</h1>
-            {loading ? (
-              <div className="space-y-3">{[1,2,3].map(i => <div key={i} className="h-14 rounded-xl bg-white/5 animate-pulse" />)}</div>
-            ) : payments.length === 0 ? (
-              <div className="text-center py-16 rounded-2xl" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
-                <Receipt className="w-8 h-8 mx-auto mb-3" style={{ color: 'var(--color-muted)' }} />
-                <p className="text-sm" style={{ color: 'var(--color-muted)' }}>No payment history yet.</p>
-              </div>
-            ) : (
-              <div
-                className="rounded-2xl overflow-hidden"
-                style={{ border: '1px solid rgba(255,255,255,0.08)' }}
-              >
-                {payments.map((p, i) => (
-                  <div
-                    key={p.id || i}
-                    className="flex items-center justify-between px-5 py-4"
-                    style={{
-                      borderBottom: i < payments.length - 1 ? '1px solid rgba(255,255,255,0.06)' : 'none',
-                      background: i % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent',
-                    }}
-                  >
-                    <div>
-                      <div className="text-sm font-medium" style={{ color: 'var(--color-parchment)' }}>{p.description || p.paymentType}</div>
-                      <div className="text-xs mt-0.5" style={{ color: 'var(--color-muted)' }}>{p.createdAt ? new Date(p.createdAt).toLocaleDateString('en-IN') : '—'}</div>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-bold" style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-gold-light)' }}>₹{p.totalAmount}</div>
-                      <div className="text-[10px] mt-0.5" style={{ color: p.status === 'COMPLETED' ? 'var(--color-jade)' : 'var(--color-muted)' }}>
-                        {p.status}
-                      </div>
                     </div>
                   </div>
                 ))}
