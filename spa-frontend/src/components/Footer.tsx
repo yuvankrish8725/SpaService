@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
+import { useAuth } from '@/lib/auth';
 import { MapPin, Phone, Mail, Clock, ShieldCheck, Globe, Share2, ArrowRight } from 'lucide-react';
 
 function LotusIcon({ size = 20 }: { size?: number }) {
@@ -29,8 +30,14 @@ function LotusIcon({ size = 20 }: { size?: number }) {
 }
 
 export default function Footer() {
+  const { user } = useAuth();
   const [email, setEmail] = useState('');
   const [subscribed, setSubscribed] = useState(false);
+
+  // Once logged in (client, agent, or admin), hide the marketing footer completely
+  if (user) {
+    return null;
+  }
 
   const handleSubscribe = (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,7 +56,7 @@ export default function Footer() {
                 className="text-xl font-bold italic mb-1"
                 style={{ fontFamily: 'var(--font-playfair)', color: '#F5CC5A' }}
               >
-                Wellness Updates & Exclusive Offers
+                Wellness Updates &amp; Exclusive Offers
               </h3>
               <p className="text-sm" style={{ color: 'var(--color-parchment)' }}>
                 Be the first to know about new therapists, seasonal rituals, and branch openings.
@@ -58,24 +65,24 @@ export default function Footer() {
             {subscribed ? (
               <div
                 className="flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-semibold"
-                style={{ background: 'rgba(52,211,153,0.08)', border: '1px solid rgba(52,211,153,0.2)', color: 'var(--color-jade)' }}
+                style={{ background: 'rgba(52,211,153,0.1)', border: '1px solid rgba(52,211,153,0.3)', color: 'var(--color-jade)' }}
               >
-                <ShieldCheck className="w-4 h-4" /> Subscribed — Thank you!
+                <span>✓</span> You are subscribed to luxury updates!
               </div>
             ) : (
-              <form onSubmit={handleSubscribe} className="flex items-center gap-2 w-full md:w-auto">
+              <form onSubmit={handleSubscribe} className="flex gap-2 w-full md:w-auto">
                 <input
                   type="email"
-                  required
+                  placeholder="Enter your email"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
-                  placeholder="Enter your email"
-                  className="input-glass flex-1 md:w-64 text-sm"
+                  required
+                  className="input-glass text-sm px-4 py-3 min-w-[240px]"
                 />
                 <button
                   type="submit"
-                  className="btn-gold flex items-center gap-2 px-5 py-3 text-xs font-bold uppercase tracking-wide shrink-0 cursor-pointer"
-                  style={{ borderRadius: 10 }}
+                  className="btn-gold px-5 py-3 text-xs uppercase tracking-wider font-bold shrink-0 cursor-pointer"
+                  style={{ borderRadius: 12 }}
                 >
                   <span style={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
                     Subscribe <ArrowRight className="w-3.5 h-3.5" />
@@ -87,16 +94,16 @@ export default function Footer() {
         </div>
       </div>
 
-      {/* ── Main Footer Grid ──────────────────────────────── */}
+      {/* ── 4-Col Grid ────────────────────────────────────── */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-12">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-10">
 
-          {/* Col 1: Brand */}
-          <div className="space-y-5">
-            <div className="flex items-center gap-3">
+          {/* Col 1: Brand (spans 2) */}
+          <div className="lg:col-span-2 space-y-4">
+            <div className="flex items-center gap-2.5">
               <div
                 className="w-9 h-9 rounded-full flex items-center justify-center"
-                style={{ background: 'rgba(212,175,55,0.08)', border: '1px solid rgba(212,175,55,0.2)' }}
+                style={{ background: 'rgba(212,175,55,0.1)', border: '1px solid rgba(212,175,55,0.25)' }}
               >
                 <LotusIcon size={18} />
               </div>

@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
-import { MapPin, Calendar, LogOut, Shield, UserCheck, Menu, X, Key, ChevronDown } from 'lucide-react';
+import { MapPin, Calendar, LogOut, Shield, UserCheck, Menu, X, Key, Sparkles } from 'lucide-react';
 
 /* ─── SVG Lotus Logo ─────────────────────────────────────── */
 function LotusIcon({ size = 22 }: { size?: number }) {
@@ -132,8 +132,8 @@ export default function Navbar() {
         className="sticky top-0 z-50 transition-all duration-300"
         style={{
           background: scrolled
-            ? 'rgba(10,9,6,0.85)'
-            : 'rgba(10,9,6,0.6)',
+            ? 'rgba(10,9,6,0.88)'
+            : 'rgba(10,9,6,0.7)',
           backdropFilter: 'blur(20px)',
           WebkitBackdropFilter: 'blur(20px)',
           borderBottom: '1px solid rgba(255,255,255,0.06)',
@@ -143,68 +143,78 @@ export default function Navbar() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-20">
 
-            {/* ── Logo ──────────────────────────────────── */}
-            <Link href="/" className="flex items-center gap-3 group shrink-0">
-              <div
-                className="w-10 h-10 rounded-full flex items-center justify-center transition-transform duration-300 group-hover:scale-110"
-                style={{
-                  background: 'radial-gradient(circle, rgba(212,175,55,0.15) 0%, rgba(212,175,55,0.05) 100%)',
-                  border: '1px solid rgba(212,175,55,0.3)',
-                }}
-              >
-                <LotusIcon size={22} />
-              </div>
-              <div className="leading-none">
-                <span
-                  className="block text-xl font-bold italic"
-                  style={{ fontFamily: 'var(--font-playfair)', color: '#F5CC5A', letterSpacing: '-0.02em' }}
-                >
-                  Serene Haven
-                </span>
-                <span
-                  className="block text-[9px] uppercase tracking-[0.22em] mt-0.5"
-                  style={{ color: 'var(--color-muted)', fontFamily: 'var(--font-inter)' }}
-                >
-                  Luxury Spa &amp; Wellness
-                </span>
-              </div>
-            </Link>
-
-            {/* ── Desktop Nav Links ─────────────────────── */}
-            <nav className="hidden md:flex items-center gap-8">
-              <NavLink href="/" active={pathname === '/'}>Home</NavLink>
-              <NavLink href="/branches" active={pathname.startsWith('/branches')}>
-                <span className="flex items-center gap-1.5">
-                  <MapPin className="w-3.5 h-3.5" style={{ color: 'var(--color-gold)' }} />
-                  Branches
-                </span>
-              </NavLink>
-              <NavLink href="/services" active={pathname.startsWith('/services')}>Treatments</NavLink>
-
-              {/* Active unlock badge */}
-              {user?.role === 'CLIENT' && activeUnlocks.length > 0 && (
+            {/* ── LEFT SIDE: Brand Logo + Primary Nav Links ── */}
+            <div className="flex items-center gap-8 lg:gap-10">
+              {/* Brand Logo */}
+              <Link href={user ? portalHref : '/'} className="flex items-center gap-3 group shrink-0">
                 <div
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold"
+                  className="w-10 h-10 rounded-full flex items-center justify-center transition-transform duration-300 group-hover:scale-110"
                   style={{
-                    background: 'rgba(212,175,55,0.08)',
-                    border: '1px solid rgba(212,175,55,0.25)',
-                    color: 'var(--color-gold-light)',
+                    background: 'radial-gradient(circle, rgba(212,175,55,0.15) 0%, rgba(212,175,55,0.05) 100%)',
+                    border: '1px solid rgba(212,175,55,0.3)',
                   }}
                 >
-                  <span
-                    className="presence-dot-present"
-                    style={{ width: 6, height: 6, background: 'var(--color-gold)' }}
-                  />
-                  <Key className="w-3 h-3" />
-                  {activeUnlocks.length} Unlocked
+                  <LotusIcon size={22} />
                 </div>
-              )}
-            </nav>
+                <div className="leading-none">
+                  <span
+                    className="block text-xl font-bold italic"
+                    style={{ fontFamily: 'var(--font-playfair)', color: '#F5CC5A', letterSpacing: '-0.02em' }}
+                  >
+                    Serene Haven
+                  </span>
+                  <span
+                    className="block text-[9px] uppercase tracking-[0.22em] mt-0.5"
+                    style={{ color: 'var(--color-muted)', fontFamily: 'var(--font-inter)' }}
+                  >
+                    Luxury Spa &amp; Wellness
+                  </span>
+                </div>
+              </Link>
 
-            {/* ── Desktop Right Actions ─────────────────── */}
+              {/* ── Left-Aligned Nav Items: Branches & Treatments (No Home when logged in) ── */}
+              <nav className="hidden md:flex items-center gap-6">
+                {!user && (
+                  <NavLink href="/" active={pathname === '/'}>Home</NavLink>
+                )}
+                <NavLink href="/branches" active={pathname.startsWith('/branches')}>
+                  <span className="flex items-center gap-1.5">
+                    <MapPin className="w-3.5 h-3.5" style={{ color: 'var(--color-gold)' }} />
+                    Branches
+                  </span>
+                </NavLink>
+                <NavLink href="/services" active={pathname.startsWith('/services')}>
+                  <span className="flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5" style={{ color: 'var(--color-gold)' }} />
+                    Treatments
+                  </span>
+                </NavLink>
+              </nav>
+            </div>
+
+            {/* ── RIGHT SIDE: Profile, Portal CTA & Session ── */}
             <div className="hidden md:flex items-center gap-3">
               {user ? (
                 <>
+                  {/* Active unlock badge (for clients) */}
+                  {user.role === 'CLIENT' && activeUnlocks.length > 0 && (
+                    <div
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold"
+                      style={{
+                        background: 'rgba(212,175,55,0.08)',
+                        border: '1px solid rgba(212,175,55,0.25)',
+                        color: 'var(--color-gold-light)',
+                      }}
+                    >
+                      <span
+                        className="presence-dot-present"
+                        style={{ width: 6, height: 6, background: 'var(--color-gold)' }}
+                      />
+                      <Key className="w-3 h-3" />
+                      {activeUnlocks.length} Unlocked
+                    </div>
+                  )}
+
                   {/* Portal link */}
                   <Link
                     href={portalHref}
@@ -264,7 +274,7 @@ export default function Navbar() {
                     className="text-sm font-medium px-4 py-2 rounded-xl transition-all duration-200"
                     style={{ color: 'var(--color-parchment)' }}
                     onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--color-cream)'; }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--color-parchment)'; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--color-parchment)' }}
                   >
                     Sign In
                   </Link>
@@ -319,28 +329,45 @@ export default function Navbar() {
 
             {/* Drawer nav items */}
             <nav className="flex-1 px-4 pt-6 space-y-1">
-              {[
-                { href: '/', label: 'Home' },
-                { href: '/branches', label: 'Branches & Locations' },
-                { href: '/services', label: 'Treatments & Services' },
-              ].map(item => (
+              {!user && (
                 <Link
-                  key={item.href}
-                  href={item.href}
+                  href="/"
                   className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors duration-200"
                   style={{
-                    color: pathname === item.href ? 'var(--color-gold-light)' : 'var(--color-parchment)',
-                    background: pathname === item.href ? 'rgba(212,175,55,0.08)' : 'transparent',
+                    color: pathname === '/' ? 'var(--color-gold-light)' : 'var(--color-parchment)',
+                    background: pathname === '/' ? 'rgba(212,175,55,0.08)' : 'transparent',
                   }}
                 >
-                  {item.label}
+                  Home
                 </Link>
-              ))}
+              )}
+              <Link
+                href="/branches"
+                className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors duration-200"
+                style={{
+                  color: pathname.startsWith('/branches') ? 'var(--color-gold-light)' : 'var(--color-parchment)',
+                  background: pathname.startsWith('/branches') ? 'rgba(212,175,55,0.08)' : 'transparent',
+                }}
+              >
+                <MapPin className="w-4 h-4" style={{ color: 'var(--color-gold)' }} />
+                Branches
+              </Link>
+              <Link
+                href="/services"
+                className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors duration-200"
+                style={{
+                  color: pathname.startsWith('/services') ? 'var(--color-gold-light)' : 'var(--color-parchment)',
+                  background: pathname.startsWith('/services') ? 'rgba(212,175,55,0.08)' : 'transparent',
+                }}
+              >
+                <Sparkles className="w-4 h-4" style={{ color: 'var(--color-gold)' }} />
+                Treatments
+              </Link>
 
               {user && (
                 <Link
                   href={portalHref}
-                  className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium mt-2 transition-colors duration-200"
+                  className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium mt-3 transition-colors duration-200"
                   style={{ color: 'var(--color-gold-light)', background: 'rgba(212,175,55,0.06)', border: '1px solid rgba(212,175,55,0.15)' }}
                 >
                   {user.role === 'CLIENT' ? <Calendar className="w-4 h-4" /> : user.role === 'AGENT' ? <UserCheck className="w-4 h-4" /> : <Shield className="w-4 h-4" />}
