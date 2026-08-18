@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { MapPin, Phone, Mail, Clock, ShieldCheck, Instagram, Facebook, ArrowRight } from 'lucide-react';
+import { MapPin, Phone, Mail, Clock, ShieldCheck, Globe, Share2, ArrowRight } from 'lucide-react';
 
 function LotusIcon({ size = 20 }: { size?: number }) {
   return (
@@ -117,8 +117,8 @@ export default function Footer() {
             {/* Social icons */}
             <div className="flex items-center gap-3 pt-1">
               {[
-                { Icon: Instagram, label: 'Instagram' },
-                { Icon: Facebook, label: 'Facebook' },
+                { Icon: Globe, label: 'Website' },
+                { Icon: Share2, label: 'Social Media' },
               ].map(({ Icon, label }) => (
                 <a
                   key={label}

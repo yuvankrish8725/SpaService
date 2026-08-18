@@ -1,3 +1,4 @@
+import React from 'react';
 import type { Metadata } from 'next';
 import './globals.css';
 import { Playfair_Display, Inter, JetBrains_Mono } from 'next/font/google';
