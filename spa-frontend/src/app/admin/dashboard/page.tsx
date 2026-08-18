@@ -14,12 +14,12 @@ import {
 import {
   Users, MapPin, Calendar, CreditCard,
   Plus, Trash2, XCircle, LayoutDashboard, UserCheck,
-  CheckCircle2, X, Loader2, Image as ImageIcon,
-  ArrowRightLeft, Sparkles
+  X, Loader2, Image as ImageIcon,
+  ArrowRightLeft, Sparkles, Edit3, Search, Check
 } from 'lucide-react';
 import StaffGalleryManageModal from '@/components/StaffGalleryManageModal';
 
-type NavSection = 'OVERVIEW' | 'BRANCHES' | 'STAFF' | 'AGENTS' | 'APPOINTMENTS' | 'PAYMENTS';
+type NavSection = 'OVERVIEW' | 'BRANCHES' | 'ROSTER' | 'THERAPISTS' | 'AGENTS' | 'APPOINTMENTS' | 'PAYMENTS';
 
 function SidebarItem({
   label, icon, active, badge, onClick,
@@ -134,6 +134,9 @@ export default function AdminDashboardPage() {
 
   const [activeSection, setActiveSection] = useState<NavSection>('OVERVIEW');
   const [selectedBranchFilter, setSelectedBranchFilter] = useState<string>('ALL');
+  const [therapistSearch, setTherapistSearch] = useState('');
+  const [therapistBranchFilter, setTherapistBranchFilter] = useState('ALL');
+
   const [branches, setBranches] = useState<BranchResponse[]>([]);
   const [staff, setStaff] = useState<StaffCardResponse[]>([]);
   const [agents, setAgents] = useState<AgentResponse[]>([]);
@@ -147,9 +150,16 @@ export default function AdminDashboardPage() {
   const [branchModalOpen, setBranchModalOpen] = useState(false);
   const [branchForm, setBranchForm] = useState({ name: '', address: '', city: '', state: '', pincode: '', phone: '', latitude: '', longitude: '', mapsUrl: '', openTime: '09:00', closeTime: '21:00' });
 
-  // Staff form & Gallery
+  // Create Staff form
   const [staffModalOpen, setStaffModalOpen] = useState(false);
   const [staffForm, setStaffForm] = useState({ branchId: '', name: '', specialization: '', bio: '', profilePhotoUrl: '', galleryPhotoUrls: '' });
+
+  // Edit Staff form
+  const [editStaffModalOpen, setEditStaffModalOpen] = useState(false);
+  const [editingStaffId, setEditingStaffId] = useState<string | null>(null);
+  const [editStaffForm, setEditStaffForm] = useState({ branchId: '', name: '', specialization: '', bio: '', profilePhotoUrl: '', galleryPhotoUrls: '' });
+
+  // Gallery Modal
   const [galleryModalOpen, setGalleryModalOpen] = useState(false);
   const [selectedStaffForGallery, setSelectedStaffForGallery] = useState<StaffCardResponse | null>(null);
 
@@ -208,6 +218,38 @@ export default function AdminDashboardPage() {
     finally { setFormLoading(false); }
   };
 
+  const handleOpenEditStaff = (s: StaffCardResponse) => {
+    setEditingStaffId(s.id);
+    setEditStaffForm({
+      branchId: s.branchId,
+      name: s.name,
+      specialization: s.specialization || '',
+      bio: s.bio || '',
+      profilePhotoUrl: s.profilePhotoUrl || '',
+      galleryPhotoUrls: s.galleryPhotoUrls || s.galleryPhotos?.join(', ') || '',
+    });
+    setEditStaffModalOpen(true);
+  };
+
+  const handleUpdateStaff = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingStaffId) return;
+    setFormLoading(true);
+    try {
+      await apiFetch<StaffCardResponse>(`/admin/staff/${editingStaffId}`, {
+        method: 'PUT',
+        body: JSON.stringify(editStaffForm),
+      });
+      showMsg('✅ Therapist profile and photos updated successfully!');
+      setEditStaffModalOpen(false);
+      loadAllAdminData();
+    } catch (err: unknown) {
+      showMsg(err instanceof Error ? err.message : 'Failed to update therapist', 'error');
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
   const handleReassignBranch = async (staffId: string, targetBranchId: string) => {
     try {
       await apiFetch<StaffCardResponse>(`/admin/staff/${staffId}/assign-branch`, {
@@ -218,6 +260,16 @@ export default function AdminDashboardPage() {
       loadAllAdminData();
     } catch (err: unknown) {
       showMsg(err instanceof Error ? err.message : 'Failed to reassign therapist', 'error');
+    }
+  };
+
+  const handleToggleStaffStatus = async (staffId: string, currentActive: boolean) => {
+    try {
+      await apiFetch(`/admin/staff/${staffId}/status?active=${!currentActive}`, { method: 'PATCH' });
+      showMsg(`✅ Therapist status changed to ${!currentActive ? 'Active' : 'Inactive'}`);
+      loadAllAdminData();
+    } catch (err: unknown) {
+      showMsg(err instanceof Error ? err.message : 'Failed to update therapist status', 'error');
     }
   };
 
@@ -250,7 +302,8 @@ export default function AdminDashboardPage() {
   const navItems = [
     { section: 'OVERVIEW' as NavSection, label: 'Overview', icon: <LayoutDashboard className="w-4 h-4" /> },
     { section: 'BRANCHES' as NavSection, label: 'Branches', icon: <MapPin className="w-4 h-4" />, badge: branches.length },
-    { section: 'STAFF' as NavSection, label: 'Staff Roster', icon: <Users className="w-4 h-4" />, badge: staff.length },
+    { section: 'ROSTER' as NavSection, label: 'Staff Roster', icon: <Users className="w-4 h-4" />, badge: staff.length },
+    { section: 'THERAPISTS' as NavSection, label: 'Therapists & Gallery', icon: <Sparkles className="w-4 h-4" />, badge: staff.length },
     { section: 'AGENTS' as NavSection, label: 'Agents', icon: <UserCheck className="w-4 h-4" />, badge: agents.length },
     { section: 'APPOINTMENTS' as NavSection, label: 'Appointments', icon: <Calendar className="w-4 h-4" />, badge: appointments.length },
     { section: 'PAYMENTS' as NavSection, label: 'Payments', icon: <CreditCard className="w-4 h-4" />, badge: payments.length },
@@ -271,6 +324,16 @@ export default function AdminDashboardPage() {
   const visibleBranches = selectedBranchFilter === 'ALL'
     ? branches
     : branches.filter(b => b.id === selectedBranchFilter);
+
+  // Filtered staff for Therapists & Gallery Directory
+  const filteredTherapists = staff.filter(s => {
+    const matchesSearch = therapistSearch === ''
+      || s.name.toLowerCase().includes(therapistSearch.toLowerCase())
+      || (s.specialization && s.specialization.toLowerCase().includes(therapistSearch.toLowerCase()))
+      || (s.branchName && s.branchName.toLowerCase().includes(therapistSearch.toLowerCase()));
+    const matchesBranch = therapistBranchFilter === 'ALL' || s.branchId === therapistBranchFilter;
+    return matchesSearch && matchesBranch;
+  });
 
   return (
     <div className="min-h-screen flex">
@@ -361,7 +424,8 @@ export default function AdminDashboardPage() {
               <div className="flex flex-wrap gap-3">
                 {[
                   { label: 'Add Branch', onClick: () => { setActiveSection('BRANCHES'); setBranchModalOpen(true); }, icon: <MapPin className="w-4 h-4" /> },
-                  { label: 'Add Therapist & Gallery', onClick: () => { setActiveSection('STAFF'); setStaffModalOpen(true); }, icon: <Users className="w-4 h-4" /> },
+                  { label: 'Create Therapist & Gallery', onClick: () => { setActiveSection('THERAPISTS'); setStaffModalOpen(true); }, icon: <Sparkles className="w-4 h-4" /> },
+                  { label: 'View Staff Roster', onClick: () => { setActiveSection('ROSTER'); }, icon: <Users className="w-4 h-4" /> },
                   { label: 'Create Agent', onClick: () => { setActiveSection('AGENTS'); setAgentModalOpen(true); }, icon: <UserCheck className="w-4 h-4" /> },
                 ].map(({ label, onClick, icon }) => (
                   <button
@@ -422,16 +486,16 @@ export default function AdminDashboardPage() {
           </div>
         )}
 
-        {/* ── STAFF ROSTER (ORGANIZED BY BRANCHES) ───────────── */}
-        {activeSection === 'STAFF' && (
+        {/* ── STAFF ROSTER (BRANCH ALLOCATION & ATTENDANCE) ─── */}
+        {activeSection === 'ROSTER' && (
           <div className="space-y-8">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <h1 className="text-2xl font-bold italic" style={{ fontFamily: 'var(--font-playfair)', color: 'var(--color-cream)' }}>
-                  Staff Roster &amp; Branch Assignments
+                  Branch Staff Roster
                 </h1>
                 <p className="text-xs mt-1" style={{ color: 'var(--color-muted)' }}>
-                  Organize therapists branch-by-branch, manage multi-photo galleries, and reassign staff across sanctuaries.
+                  View daily presence status, assign therapists to sanctuaries, and reassign across branches.
                 </p>
               </div>
 
@@ -666,6 +730,233 @@ export default function AdminDashboardPage() {
                           })}
                         </div>
                       )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── THERAPISTS & GALLERY STUDIO (MASTER DIRECTORY & CREATION) ── */}
+        {activeSection === 'THERAPISTS' && (
+          <div className="space-y-8">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="badge-gold text-[10px]">MASTER DIRECTORY</span>
+                  <span className="text-xs" style={{ color: 'var(--color-muted)' }}>{staff.length} Certified Practitioners</span>
+                </div>
+                <h1 className="text-2xl font-bold italic" style={{ fontFamily: 'var(--font-playfair)', color: 'var(--color-cream)' }}>
+                  Therapist Studio &amp; Gallery
+                </h1>
+                <p className="text-xs mt-1" style={{ color: 'var(--color-muted)' }}>
+                  Create new therapists, manage multi-photo portfolios, edit biographies, and curate luxury treatment imagery.
+                </p>
+              </div>
+
+              <button
+                onClick={() => {
+                  setStaffForm({ branchId: branches[0]?.id || '', name: '', specialization: '', bio: '', profilePhotoUrl: '', galleryPhotoUrls: '' });
+                  setStaffModalOpen(true);
+                }}
+                className="btn-gold flex items-center gap-2 px-5 py-2.5 text-xs font-bold uppercase tracking-wide cursor-pointer self-start sm:self-auto"
+                style={{ borderRadius: 10 }}
+              >
+                <span style={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Plus className="w-4 h-4" /> Create New Therapist &amp; Gallery
+                </span>
+              </button>
+            </div>
+
+            {/* Search & Branch Filters */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="sm:col-span-2 relative">
+                <Search className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-white/40" />
+                <input
+                  type="text"
+                  placeholder="Search therapists by name, specialty, or branch..."
+                  value={therapistSearch}
+                  onChange={e => setTherapistSearch(e.target.value)}
+                  className="input-glass w-full pl-10 text-xs py-2.5"
+                />
+              </div>
+              <div>
+                <select
+                  value={therapistBranchFilter}
+                  onChange={e => setTherapistBranchFilter(e.target.value)}
+                  style={selectStyle}
+                  className="text-xs py-2.5"
+                >
+                  <option value="ALL" className="bg-neutral-900 text-white">All Sanctuaries ({staff.length})</option>
+                  {branches.map(b => (
+                    <option key={b.id} value={b.id} className="bg-neutral-900 text-white">
+                      {b.name} ({staff.filter(s => s.branchId === b.id).length})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Therapist Directory Cards */}
+            {loading ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {[1, 2, 3].map(i => <div key={i} className="h-80 rounded-3xl bg-white/5 animate-pulse" />)}
+              </div>
+            ) : filteredTherapists.length === 0 ? (
+              <div className="p-16 text-center rounded-3xl bg-white/5 border border-white/5 space-y-4">
+                <Users className="w-10 h-10 mx-auto text-amber-400/60" />
+                <h3 className="text-base font-bold" style={{ color: 'var(--color-cream)' }}>No therapists found</h3>
+                <p className="text-xs text-white/40 max-w-md mx-auto">
+                  No practitioners matched your search criteria. Create a new therapist profile to get started.
+                </p>
+                <button
+                  onClick={() => setStaffModalOpen(true)}
+                  className="btn-gold px-5 py-2.5 text-xs font-bold uppercase tracking-wider cursor-pointer"
+                  style={{ borderRadius: 10 }}
+                >
+                  <span style={{ position: 'relative', zIndex: 2 }}>+ Create First Therapist</span>
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {filteredTherapists.map(s => {
+                  const allPhotos = [
+                    ...(s.profilePhotoUrl ? [s.profilePhotoUrl] : []),
+                    ...(s.galleryPhotos && s.galleryPhotos.length > 0 ? s.galleryPhotos : []),
+                  ];
+                  const uniquePhotos = Array.from(new Set(allPhotos));
+
+                  return (
+                    <div
+                      key={s.id}
+                      className="glass-card p-6 rounded-3xl flex flex-col justify-between gap-6 border border-white/10 hover:border-amber-400/30 transition-all"
+                    >
+                      <div className="space-y-4">
+                        {/* Header: Avatar, Name, Branch, Status */}
+                        <div className="flex items-start gap-4">
+                          <div className="relative shrink-0">
+                            <div
+                              className="w-16 h-16 rounded-2xl overflow-hidden flex items-center justify-center font-bold text-xl"
+                              style={{ background: 'rgba(255,255,255,0.06)', border: '1.5px solid rgba(212,175,55,0.3)', color: 'var(--color-gold)' }}
+                            >
+                              {s.profilePhotoUrl ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={s.profilePhotoUrl} alt={s.name} className="w-full h-full object-cover" />
+                              ) : (
+                                s.name[0]
+                              )}
+                            </div>
+                            <span className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-black ${s.presentToday ? 'bg-emerald-400' : 'bg-rose-400'}`} />
+                          </div>
+
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-2">
+                              <h3 className="font-bold text-base truncate" style={{ fontFamily: 'var(--font-playfair)', color: 'var(--color-cream)' }}>
+                                {s.name}
+                              </h3>
+                              <span className="badge-jade text-[9px] px-2 py-0.5">ACTIVE</span>
+                            </div>
+                            <div className="text-xs font-semibold text-amber-300 truncate mt-0.5">
+                              {s.specialization || 'Wellness Specialist'}
+                            </div>
+                            <div className="flex items-center gap-1.5 text-xs text-white/50 mt-1">
+                              <MapPin className="w-3 h-3 text-amber-400/80" />
+                              <span className="truncate">{s.branchName || 'Unassigned'}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Bio Section */}
+                        {s.bio && (
+                          <p className="text-xs text-white/60 line-clamp-3 leading-relaxed bg-white/3 p-3 rounded-xl border border-white/5">
+                            {s.bio}
+                          </p>
+                        )}
+
+                        {/* Photo Gallery Thumbnail Preview Strip */}
+                        <div className="space-y-2 pt-1">
+                          <div className="flex items-center justify-between text-[11px]">
+                            <span className="font-semibold text-white/60 uppercase tracking-wider flex items-center gap-1">
+                              <ImageIcon className="w-3 h-3 text-amber-400" /> Photo Portfolio
+                            </span>
+                            <span className="text-amber-400 font-bold">
+                              {uniquePhotos.length} {uniquePhotos.length === 1 ? 'photo' : 'photos'}
+                            </span>
+                          </div>
+
+                          {uniquePhotos.length === 0 ? (
+                            <div className="p-3 text-center rounded-xl bg-white/5 text-[11px] text-white/40">
+                              No gallery photos added yet.
+                            </div>
+                          ) : (
+                            <div className="grid grid-cols-4 gap-1.5">
+                              {uniquePhotos.slice(0, 4).map((imgUrl, imgIdx) => (
+                                <div
+                                  key={imgIdx}
+                                  className="aspect-square rounded-lg overflow-hidden border border-white/10 bg-black/40 relative group cursor-pointer"
+                                  onClick={() => {
+                                    setSelectedStaffForGallery(s);
+                                    setGalleryModalOpen(true);
+                                  }}
+                                >
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img src={imgUrl} alt={`thumb-${imgIdx}`} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300" />
+                                  {imgIdx === 3 && uniquePhotos.length > 4 && (
+                                    <div className="absolute inset-0 bg-black/70 flex items-center justify-center text-[10px] font-bold text-amber-300">
+                                      +{uniquePhotos.length - 4}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Card Action Controls */}
+                      <div className="space-y-2 pt-3 border-t border-white/10">
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedStaffForGallery(s);
+                              setGalleryModalOpen(true);
+                            }}
+                            className="btn-gold flex items-center justify-center gap-1.5 py-2.5 text-xs font-bold uppercase tracking-wider cursor-pointer"
+                            style={{ borderRadius: 10 }}
+                          >
+                            <span style={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', gap: 5 }}>
+                              <ImageIcon className="w-3.5 h-3.5" /> Photos ({uniquePhotos.length})
+                            </span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditStaff(s)}
+                            className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-semibold cursor-pointer transition-all bg-white/5 hover:bg-white/10 text-white/80 hover:text-white border border-white/10"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                            <span>Edit Profile</span>
+                          </button>
+                        </div>
+
+                        {/* Sanctuary Quick Switch */}
+                        <div className="flex items-center gap-2 pt-1">
+                          <span className="text-[10px] uppercase font-bold text-white/40 shrink-0">Branch:</span>
+                          <select
+                            value={s.branchId}
+                            onChange={e => handleReassignBranch(s.id, e.target.value)}
+                            className="w-full text-xs py-1.5 px-2.5 rounded-lg cursor-pointer bg-white/5 border border-white/10 text-white/80 hover:border-amber-400/40 transition-colors"
+                          >
+                            {branches.map(b => (
+                              <option key={b.id} value={b.id} className="bg-neutral-900 text-white">
+                                {b.name} ({b.city})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
                     </div>
                   );
                 })}
@@ -917,8 +1208,8 @@ export default function AdminDashboardPage() {
         </form>
       </FormModal>
 
-      {/* ══ ADD STAFF & MULTI-GALLERY MODAL ══════════════════ */}
-      <FormModal title="Add Therapist & Photo Gallery" isOpen={staffModalOpen} onClose={() => setStaffModalOpen(false)}>
+      {/* ══ CREATE STAFF & MULTI-GALLERY MODAL ═══════════════ */}
+      <FormModal title="Create Therapist & Photo Gallery" isOpen={staffModalOpen} onClose={() => setStaffModalOpen(false)}>
         <form onSubmit={handleCreateStaff} className="space-y-4">
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--color-parchment)' }}>Assign to Branch</label>
@@ -957,7 +1248,53 @@ export default function AdminDashboardPage() {
 
           <button type="submit" disabled={formLoading} className="btn-gold w-full py-3.5 text-sm font-bold uppercase tracking-wider cursor-pointer disabled:opacity-50" style={{ borderRadius: 12 }}>
             <span style={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-              {formLoading ? <><Loader2 className="w-4 h-4 spinner" /> Adding…</> : <><Plus className="w-4 h-4" /> Create Therapist &amp; Gallery</>}
+              {formLoading ? <><Loader2 className="w-4 h-4 spinner" /> Creating…</> : <><Plus className="w-4 h-4" /> Create Therapist &amp; Gallery</>}
+            </span>
+          </button>
+        </form>
+      </FormModal>
+
+      {/* ══ EDIT STAFF MODAL ═════════════════════════════════ */}
+      <FormModal title="Edit Therapist Profile & Details" isOpen={editStaffModalOpen} onClose={() => setEditStaffModalOpen(false)}>
+        <form onSubmit={handleUpdateStaff} className="space-y-4">
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--color-parchment)' }}>Assigned Sanctuary</label>
+            <select value={editStaffForm.branchId} onChange={e => setEditStaffForm(p => ({ ...p, branchId: e.target.value }))} style={selectStyle}>
+              {branches.map(b => <option key={b.id} value={b.id}>{b.name} — {b.city}</option>)}
+            </select>
+          </div>
+          <InputField label="Therapist Name" required placeholder="Ananya Sharma" value={editStaffForm.name} onChange={e => setEditStaffForm(p => ({ ...p, name: e.target.value }))} />
+          <InputField label="Specialization" placeholder="Deep Tissue, Aromatherapy, Swedish" value={editStaffForm.specialization} onChange={e => setEditStaffForm(p => ({ ...p, specialization: e.target.value }))} />
+          <InputField label="Primary Profile Photo URL" placeholder="https://images.unsplash.com/... or image link" value={editStaffForm.profilePhotoUrl} onChange={e => setEditStaffForm(p => ({ ...p, profilePhotoUrl: e.target.value }))} />
+
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--color-parchment)' }}>
+              Gallery Photo URLs (Multiple images)
+            </label>
+            <p className="text-[11px] text-white/40 mb-2">Separate multiple image URLs with commas (,)</p>
+            <textarea
+              value={editStaffForm.galleryPhotoUrls}
+              onChange={e => setEditStaffForm(p => ({ ...p, galleryPhotoUrls: e.target.value }))}
+              placeholder="https://images.unsplash.com/photo-1..., https://images.unsplash.com/photo-2..."
+              rows={2}
+              style={{ ...selectStyle, resize: 'vertical' }}
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--color-parchment)' }}>Short Bio &amp; Qualifications</label>
+            <textarea
+              value={editStaffForm.bio}
+              onChange={e => setEditStaffForm(p => ({ ...p, bio: e.target.value }))}
+              placeholder="10+ years specializing in therapeutic deep tissue and hot stone massage…"
+              rows={3}
+              style={{ ...selectStyle, resize: 'vertical' }}
+            />
+          </div>
+
+          <button type="submit" disabled={formLoading} className="btn-gold w-full py-3.5 text-sm font-bold uppercase tracking-wider cursor-pointer disabled:opacity-50" style={{ borderRadius: 12 }}>
+            <span style={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+              {formLoading ? <><Loader2 className="w-4 h-4 spinner" /> Saving…</> : <><Check className="w-4 h-4" /> Save Changes</>}
             </span>
           </button>
         </form>
